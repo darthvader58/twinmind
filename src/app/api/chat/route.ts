@@ -9,6 +9,7 @@ import {
   sizeTranscript,
   type ChatMsg,
 } from '@/lib/prompts/assemble';
+import { SuggestionTypeSchema } from '@/lib/prompts/schemas';
 import { sseStream } from '@/lib/sse/server';
 import { makeError, type TwinMindError } from '@/lib/types';
 
@@ -16,13 +17,7 @@ export const runtime = 'edge';
 
 const SuggestionShape = z.object({
   id: z.string(),
-  type: z.enum([
-    'question_to_ask',
-    'talking_point',
-    'answer',
-    'fact_check',
-    'clarifying_info',
-  ]),
+  type: SuggestionTypeSchema,
   preview: z.string(),
 });
 

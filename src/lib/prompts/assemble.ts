@@ -91,7 +91,7 @@ export function buildSuggestMessages(args: {
     ? 'RECENT_TRANSCRIPT (last ~0 chars): (no transcript yet — produce 3 useful kickoff suggestions for an unknown live conversation)'
     : `RECENT_TRANSCRIPT (last ~${transcriptWindow.length} chars):\n"""\n${transcriptWindow}\n"""`;
 
-  const userContent = `${previewsBlock}\n\n${graphBlock}\n\n${transcriptBlock}\n\nNow produce exactly 3 suggestions per the rules. Remember: max 2 of type \`question_to_ask\`; if a question is unanswered in the window, include at least 1 \`answer\`; if a verifiable claim was made, include at least 1 \`fact_check\`. If KNOWLEDGE_GRAPH has uncovered nodes, at least 1 suggestion MUST cite one (rule F); at least 1 suggestion MUST add forward momentum via \`tangent\`, \`talking_point\`, or \`clarifying_info\` (rule G).`;
+  const userContent = `${previewsBlock}\n\n${graphBlock}\n\n${transcriptBlock}\n\nNow produce exactly 3 suggestions. Pick the 3 things that would feel most like the user's own next thought. Vary the types. Don't repeat anything in PREVIOUS_PREVIEWS.`;
 
   return [
     { role: 'system', content: settings.suggestPrompt },

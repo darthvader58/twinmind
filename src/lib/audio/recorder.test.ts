@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { TwinMindError } from '@/lib/types';
 
 import { pickMime, type MimeError } from './mime';
+import { shouldRotate } from './recorder';
 
 interface RecorderStub {
   isTypeSupported: (m: string) => boolean;
@@ -68,5 +69,54 @@ describe('pickMime', () => {
       isTypeSupported: (m: string) => m === 'audio/mp4',
     };
     expect(pickMime()).toBe('audio/mp4');
+  });
+});
+
+describe('shouldRotate', () => {
+  const base = { minChunkMs: 4000, maxChunkMs: 30000, silenceMs: 700 };
+
+  it('keeps recording during pure silence below the ceiling', () => {
+    expect(
+      shouldRotate({ ...base, chunkAgeMs: 10_000, lastSpeechAtMs: 0, nowMs: 10_000 }),
+    ).toBe(false);
+  });
+
+  it('rotates at the ceiling even with no speech', () => {
+    expect(
+      shouldRotate({ ...base, chunkAgeMs: 30_000, lastSpeechAtMs: 0, nowMs: 30_000 }),
+    ).toBe(true);
+  });
+
+  it('rotates after speech followed by 800 ms of silence', () => {
+    expect(
+      shouldRotate({ ...base, chunkAgeMs: 6_000, lastSpeechAtMs: 5_200, nowMs: 6_000 }),
+    ).toBe(true);
+  });
+
+  it('keeps recording when only 200 ms have passed since last speech', () => {
+    expect(
+      shouldRotate({ ...base, chunkAgeMs: 6_000, lastSpeechAtMs: 5_800, nowMs: 6_000 }),
+    ).toBe(false);
+  });
+
+  it('respects the minimum chunk floor', () => {
+    expect(
+      shouldRotate({ ...base, chunkAgeMs: 3_000, lastSpeechAtMs: 0, nowMs: 3_000 }),
+    ).toBe(false);
+    expect(
+      shouldRotate({ ...base, chunkAgeMs: 3_000, lastSpeechAtMs: 1_000, nowMs: 3_000 }),
+    ).toBe(false);
+  });
+
+  it('rotates just past the floor when silence has been sustained', () => {
+    expect(
+      shouldRotate({ ...base, chunkAgeMs: 4_500, lastSpeechAtMs: 3_800, nowMs: 4_500 }),
+    ).toBe(true);
+  });
+
+  it('does not rotate when speech is happening this exact frame', () => {
+    expect(
+      shouldRotate({ ...base, chunkAgeMs: 8_000, lastSpeechAtMs: 8_000, nowMs: 8_000 }),
+    ).toBe(false);
   });
 });

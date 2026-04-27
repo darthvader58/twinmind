@@ -16,6 +16,7 @@ import {
   DEFAULT_EXTRACT_PROMPT,
   DEFAULT_SUGGEST_PROMPT,
 } from './defaults';
+import { SuggestionTypeSchema } from './schemas';
 
 const graphNode = (
   overrides: Partial<TopicGraphNode> & {

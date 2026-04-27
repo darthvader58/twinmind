@@ -97,7 +97,7 @@ export const SettingsModal = ({ open, onClose }: Props) => {
           </h3>
           <div className="grid grid-cols-2 gap-3">
             <NumberField
-              label="Chunk"
+              label="Chunk ceiling (s)"
               value={chunkSeconds}
               onChange={(n) => setNumber('chunkSeconds', n)}
               min={5}
