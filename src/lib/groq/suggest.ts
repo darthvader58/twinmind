@@ -15,7 +15,7 @@ export type SuggestReturn =
 
 const SUGGEST_MODEL = 'openai/gpt-oss-120b';
 const SUGGEST_TEMPERATURE = 0.4;
-const SUGGEST_MAX_TOKENS = 600;
+const SUGGEST_MAX_TOKENS = 1000;
 
 const STRICT_REMINDER =
   'STRICT REMINDER: Return ONLY a valid JSON object with the shape ' +

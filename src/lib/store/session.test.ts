@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useSessionStore } from '@/lib/store/session';
-import type { Suggestion, SuggestionBatch, TranscriptChunk } from '@/lib/types';
+import type {
+  Suggestion,
+  SuggestionBatch,
+  TopicGraphNode,
+  TranscriptChunk,
+} from '@/lib/types';
 
 const makeChunk = (id: string, startedAtMs: number, text = 'hi'): TranscriptChunk => ({
   id,
@@ -130,6 +135,98 @@ describe('useSessionStore', () => {
     expect(afterMark2.has('c1')).toBe(true);
     expect(afterUnmark.has('c1')).toBe(false);
     expect(afterUnmark.has('c2')).toBe(true);
+  });
+
+  describe('topicGraph', () => {
+    const node = (
+      label: string,
+      kind: TopicGraphNode['kind'] = 'entity',
+      ms = 1000,
+      related: string[] = [],
+    ): Omit<TopicGraphNode, 'id'> => ({
+      label,
+      display: label,
+      kind,
+      firstMentionedAtMs: ms,
+      lastMentionedAtMs: ms,
+      covered: false,
+      relatedLabels: related,
+    });
+
+    it('mergeGraphNodes adds new nodes with assigned ids', () => {
+      const s = useSessionStore.getState();
+      s.mergeGraphNodes([node('whisper'), node('groq', 'entity', 2000)]);
+      const g = useSessionStore.getState().topicGraph;
+      expect(g).toHaveLength(2);
+      expect(g[0]?.label).toBe('whisper');
+      expect(g[1]?.label).toBe('groq');
+      expect(g[0]?.id.length).toBeGreaterThan(0);
+      expect(g[1]?.id.length).toBeGreaterThan(0);
+    });
+
+    it('mergeGraphNodes dedupes by (label, kind), updates lastMentionedAtMs, unions relatedLabels', () => {
+      const s = useSessionStore.getState();
+      s.mergeGraphNodes([node('whisper', 'entity', 1000, ['asr'])]);
+      const initialId = useSessionStore.getState().topicGraph[0]?.id;
+      s.mergeGraphNodes([node('whisper', 'entity', 5000, ['diarization'])]);
+      const g = useSessionStore.getState().topicGraph;
+      expect(g).toHaveLength(1);
+      expect(g[0]?.id).toBe(initialId);
+      expect(g[0]?.lastMentionedAtMs).toBe(5000);
+      expect(g[0]?.firstMentionedAtMs).toBe(1000);
+      expect(g[0]?.relatedLabels.sort()).toEqual(['asr', 'diarization']);
+    });
+
+    it('mergeGraphNodes treats different kinds with the same label as distinct nodes', () => {
+      const s = useSessionStore.getState();
+      s.mergeGraphNodes([node('latency', 'entity'), node('latency', 'claim')]);
+      const g = useSessionStore.getState().topicGraph;
+      expect(g).toHaveLength(2);
+    });
+
+    it('mergeGraphNodes caps the graph at 60 entries (FIFO)', () => {
+      const s = useSessionStore.getState();
+      const incoming: Omit<TopicGraphNode, 'id'>[] = [];
+      for (let i = 0; i < 70; i++) {
+        incoming.push(node(`label-${i}`, 'entity', i));
+      }
+      s.mergeGraphNodes(incoming);
+      const g = useSessionStore.getState().topicGraph;
+      expect(g).toHaveLength(60);
+      expect(g[0]?.label).toBe('label-10');
+      expect(g[59]?.label).toBe('label-69');
+    });
+
+    it('markGraphNodesCovered substring-matches and flips covered=true', () => {
+      const s = useSessionStore.getState();
+      s.mergeGraphNodes([
+        node('whisper large v3'),
+        node('groq', 'entity', 2000),
+        node('p99 latency target is 200 ms', 'claim'),
+      ]);
+      s.markGraphNodesCovered(['Whisper', 'p99']);
+      const g = useSessionStore.getState().topicGraph;
+      expect(g.find((n) => n.label === 'whisper large v3')?.covered).toBe(true);
+      expect(g.find((n) => n.label === 'groq')?.covered).toBe(false);
+      expect(
+        g.find((n) => n.label === 'p99 latency target is 200 ms')?.covered,
+      ).toBe(true);
+    });
+
+    it('markGraphNodesCovered ignores empty input', () => {
+      const s = useSessionStore.getState();
+      s.mergeGraphNodes([node('whisper')]);
+      s.markGraphNodesCovered([]);
+      s.markGraphNodesCovered(['', '   ']);
+      expect(useSessionStore.getState().topicGraph[0]?.covered).toBe(false);
+    });
+
+    it('resetAll clears the topicGraph', () => {
+      const s = useSessionStore.getState();
+      s.mergeGraphNodes([node('whisper')]);
+      s.resetAll();
+      expect(useSessionStore.getState().topicGraph).toEqual([]);
+    });
   });
 
   it('resetAll wipes chunks, batches, chat, recording state back to defaults', () => {

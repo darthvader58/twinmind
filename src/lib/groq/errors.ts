@@ -43,6 +43,17 @@ export function mapGroqError(err: unknown): TwinMindError {
       err,
     );
   }
+  if (
+    status === 400 &&
+    (message.includes('json_validate_failed') ||
+      message.includes('Failed to validate JSON'))
+  ) {
+    return makeError(
+      'invalid_json',
+      'Groq JSON validator rejected model output (likely truncated).',
+      err,
+    );
+  }
 
   return makeError('unknown', message, err);
 }

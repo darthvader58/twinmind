@@ -5,7 +5,24 @@ export type SuggestionType =
   | 'talking_point'
   | 'answer'
   | 'fact_check'
-  | 'clarifying_info';
+  | 'clarifying_info'
+  | 'tangent';
+
+export type TopicNodeKind = 'entity' | 'claim' | 'open_question' | 'tangent_seed';
+
+export interface TopicGraphNode {
+  id: string;
+  /** Canonicalized (lowercased, trimmed) — used for dedupe and substring matching. */
+  label: string;
+  /** Original-case form preserved for prompt rendering. */
+  display: string;
+  kind: TopicNodeKind;
+  firstMentionedAtMs: number;
+  lastMentionedAtMs: number;
+  covered: boolean;
+  /** For `tangent_seed` nodes, the related concepts the model proposed. */
+  relatedLabels: string[];
+}
 
 export interface Suggestion {
   id: string;

@@ -2,20 +2,15 @@ import { z } from 'zod';
 
 import { isNoApiKeyError, makeGroq } from '@/lib/groq/client';
 import { toSafeError } from '@/lib/groq/errors';
-import { generateSuggestions } from '@/lib/groq/suggest';
-import { newId } from '@/lib/ids';
-import { buildSuggestMessages } from '@/lib/prompts/assemble';
-import { TopicGraphNodeWireSchema } from '@/lib/prompts/schemas';
-import { makeError, type Suggestion, type TwinMindError } from '@/lib/types';
+import { extractNodes } from '@/lib/groq/extract';
+import { buildExtractMessages } from '@/lib/prompts/assemble';
+import { makeError, type TwinMindError } from '@/lib/types';
 
 export const runtime = 'edge';
 
-const SuggestRequestSchema = z.object({
-  transcriptWindow: z.string(),
-  previousPreviews: z.array(z.string()).max(20),
-  suggestPrompt: z.string().min(1),
-  contextChars: z.number().int().nonnegative(),
-  topicGraph: z.array(TopicGraphNodeWireSchema).max(60).default([]),
+const ExtractRequestSchema = z.object({
+  chunkText: z.string().min(1).max(20000),
+  extractPrompt: z.string().min(1),
 });
 
 const STATUS_BY_KIND: Record<TwinMindError['kind'], number> = {
@@ -57,7 +52,7 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const parsed = SuggestRequestSchema.safeParse(body);
+  const parsed = ExtractRequestSchema.safeParse(body);
   if (!parsed.success) {
     return errorResponse(
       makeError(
@@ -75,44 +70,22 @@ export async function POST(req: Request): Promise<Response> {
     return errorResponse(makeError('unknown', 'Failed to initialize Groq client.'));
   }
 
-  const messages = buildSuggestMessages({
-    transcriptWindow: parsed.data.transcriptWindow,
-    previousPreviews: parsed.data.previousPreviews,
-    settings: { suggestPrompt: parsed.data.suggestPrompt },
-    topicGraph: parsed.data.topicGraph,
+  const messages = buildExtractMessages({
+    chunkText: parsed.data.chunkText,
+    settings: { extractPrompt: parsed.data.extractPrompt },
   });
 
   const t0 = Date.now();
-  const result = await generateSuggestions(client, messages);
+  const result = await extractNodes(client, messages);
   const latencyMs = Date.now() - t0;
 
   if (!result.ok) return errorResponse(result.error);
 
-  const items = result.data.suggestions;
-  if (items.length !== 3) {
-    return errorResponse(
-      makeError(
-        'invalid_json',
-        `Expected 3 suggestions, got ${items.length}.`,
-      ),
-    );
-  }
-  const [a, b, c] = items;
-  if (!a || !b || !c) {
-    return errorResponse(
-      makeError('invalid_json', 'Suggestion list contained empty entries.'),
-    );
-  }
-
-  const suggestions: [Suggestion, Suggestion, Suggestion] = [
-    { id: newId('s'), type: a.type, preview: a.preview },
-    { id: newId('s'), type: b.type, preview: b.preview },
-    { id: newId('s'), type: c.type, preview: c.preview },
-  ];
-
   return Response.json({
-    suggestions,
-    generatedAt: Date.now(),
+    entities: result.data.entities,
+    claims: result.data.claims,
+    open_questions: result.data.open_questions,
+    tangent_seeds: result.data.tangent_seeds,
     latencyMs,
   });
 }

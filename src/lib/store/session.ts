@@ -7,9 +7,12 @@ import type {
   ChatMessage,
   RecordingState,
   SuggestionBatch,
+  TopicGraphNode,
   TranscriptChunk,
   TwinMindError,
 } from '@/lib/types';
+
+const TOPIC_GRAPH_CAP = 60;
 
 export interface SessionState {
   recording: RecordingState;
@@ -26,6 +29,8 @@ export interface SessionState {
   chat: ChatMessage[];
   chatStreaming: boolean;
 
+  topicGraph: TopicGraphNode[];
+
   setRecording: (state: RecordingState, error?: TwinMindError) => void;
   appendChunk: (chunk: TranscriptChunk) => void;
   markChunkPending: (id: string) => void;
@@ -34,6 +39,8 @@ export interface SessionState {
   setSuggestionsLoading: (loading: boolean) => void;
   setSuggestionsError: (error: TwinMindError | undefined) => void;
   setNextRefreshAtMs: (ts: number) => void;
+  mergeGraphNodes: (incoming: Omit<TopicGraphNode, 'id'>[]) => void;
+  markGraphNodesCovered: (labels: string[]) => void;
   pushUserMessage: (
     text: string,
     source?: { id: string; preview: string },
@@ -55,6 +62,7 @@ const initialState = {
   nextRefreshAtMs: 0,
   chat: [] as ChatMessage[],
   chatStreaming: false,
+  topicGraph: [] as TopicGraphNode[],
 };
 
 export const useSessionStore = create<SessionState>()(
@@ -148,10 +156,64 @@ export const useSessionStore = create<SessionState>()(
       });
     },
 
+    mergeGraphNodes: (incoming) => {
+      if (incoming.length === 0) return;
+      set((s) => {
+        const next = [...s.topicGraph];
+        for (const node of incoming) {
+          const idx = next.findIndex(
+            (n) => n.kind === node.kind && n.label === node.label,
+          );
+          if (idx >= 0) {
+            const existing = next[idx];
+            if (!existing) continue;
+            const mergedRelated = Array.from(
+              new Set([...existing.relatedLabels, ...node.relatedLabels]),
+            );
+            next[idx] = {
+              ...existing,
+              lastMentionedAtMs: Math.max(
+                existing.lastMentionedAtMs,
+                node.lastMentionedAtMs,
+              ),
+              relatedLabels: mergedRelated,
+            };
+          } else {
+            next.push({ ...node, id: newId('g') });
+          }
+        }
+        const trimmed =
+          next.length > TOPIC_GRAPH_CAP
+            ? next.slice(next.length - TOPIC_GRAPH_CAP)
+            : next;
+        return { topicGraph: trimmed };
+      });
+    },
+
+    markGraphNodesCovered: (labels) => {
+      if (labels.length === 0) return;
+      const needles = labels
+        .map((l) => l.trim().toLowerCase())
+        .filter((l) => l.length > 0);
+      if (needles.length === 0) return;
+      set((s) => ({
+        topicGraph: s.topicGraph.map((n) => {
+          if (n.covered) return n;
+          for (const needle of needles) {
+            if (n.label.includes(needle) || needle.includes(n.label)) {
+              return { ...n, covered: true };
+            }
+          }
+          return n;
+        }),
+      }));
+    },
+
     resetAll: () => {
       set({
         ...initialState,
         pendingChunkIds: new Set<string>(),
+        topicGraph: [],
       });
     },
   })),

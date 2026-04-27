@@ -1,4 +1,4 @@
-import type { ChatMessage, Suggestion } from '@/lib/types';
+import type { ChatMessage, Suggestion, TopicGraphNode } from '@/lib/types';
 
 export interface ChatMsg {
   role: 'system' | 'user' | 'assistant';
@@ -15,6 +15,25 @@ export interface ExpandSettings {
 
 export interface ChatPromptSettings {
   chatPrompt: string;
+}
+
+export interface ExtractSettings {
+  extractPrompt: string;
+}
+
+const TOPIC_KIND_LABEL: Record<TopicGraphNode['kind'], string> = {
+  entity: 'entity',
+  claim: 'claim',
+  open_question: 'open_question',
+  tangent_seed: 'tangent_seed',
+};
+
+function renderGraphLine(node: TopicGraphNode): string {
+  const related =
+    node.kind === 'tangent_seed' && node.relatedLabels.length > 0
+      ? ` → ${node.relatedLabels.slice(0, 3).join(', ')}`
+      : '';
+  return `- [${TOPIC_KIND_LABEL[node.kind]}] ${node.display}${related} (covered: ${node.covered})`;
 }
 
 const SENTENCE_BOUNDARY_LOOKAHEAD = 200;
@@ -53,22 +72,41 @@ export function buildSuggestMessages(args: {
   transcriptWindow: string;
   previousPreviews: string[];
   settings: SuggestSettings;
+  topicGraph?: TopicGraphNode[];
 }): ChatMsg[] {
   const { transcriptWindow, previousPreviews, settings } = args;
+  const topicGraph = args.topicGraph ?? [];
   const previewsBlock =
     previousPreviews.length === 0
       ? 'PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates): (none yet)'
       : `PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates):\n${previousPreviews.map((p) => `- ${p}`).join('\n')}`;
+
+  const graphBlock =
+    topicGraph.length === 0
+      ? 'KNOWLEDGE_GRAPH (topics raised so far in the call): (empty — no nodes yet)'
+      : `KNOWLEDGE_GRAPH (topics raised so far in the call; "covered" means already explored or already suggested):\n${topicGraph.map(renderGraphLine).join('\n')}`;
 
   const transcriptIsEmpty = transcriptWindow.trim() === '';
   const transcriptBlock = transcriptIsEmpty
     ? 'RECENT_TRANSCRIPT (last ~0 chars): (no transcript yet — produce 3 useful kickoff suggestions for an unknown live conversation)'
     : `RECENT_TRANSCRIPT (last ~${transcriptWindow.length} chars):\n"""\n${transcriptWindow}\n"""`;
 
-  const userContent = `${previewsBlock}\n\n${transcriptBlock}\n\nNow produce exactly 3 suggestions per the rules. Remember: max 2 of type \`question_to_ask\`; if a question is unanswered in the window, include at least 1 \`answer\`; if a verifiable claim was made, include at least 1 \`fact_check\`.`;
+  const userContent = `${previewsBlock}\n\n${graphBlock}\n\n${transcriptBlock}\n\nNow produce exactly 3 suggestions per the rules. Remember: max 2 of type \`question_to_ask\`; if a question is unanswered in the window, include at least 1 \`answer\`; if a verifiable claim was made, include at least 1 \`fact_check\`. If KNOWLEDGE_GRAPH has uncovered nodes, at least 1 suggestion MUST cite one (rule F); at least 1 suggestion MUST add forward momentum via \`tangent\`, \`talking_point\`, or \`clarifying_info\` (rule G).`;
 
   return [
     { role: 'system', content: settings.suggestPrompt },
+    { role: 'user', content: userContent },
+  ];
+}
+
+export function buildExtractMessages(args: {
+  chunkText: string;
+  settings: ExtractSettings;
+}): ChatMsg[] {
+  const { chunkText, settings } = args;
+  const userContent = `RECENT_CHUNK:\n"""\n${chunkText}\n"""`;
+  return [
+    { role: 'system', content: settings.extractPrompt },
     { role: 'user', content: userContent },
   ];
 }

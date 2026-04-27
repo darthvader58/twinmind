@@ -8,6 +8,7 @@ ALLOWED TYPES (pick the right MIX based on what is happening RIGHT NOW):
 • answer           — a direct, concrete answer to a question that was just asked in the transcript and is unanswered.
 • fact_check       — a verifiable claim was just made; either confirm with a precise correction OR flag uncertainty with the actual figure if known. State the claim AND the verdict in one line.
 • clarifying_info  — a term, person, framework, or number was used that needs unpacking; explain it tightly.
+• tangent          — a related-but-not-yet-discussed concept that branches off from a KNOWLEDGE_GRAPH entity, claim, or tangent_seed. Format: "<trigger> — adjacent: <tangent>, because <why>". The trigger MUST be a label the speaker has actually said.
 
 HARD STRUCTURAL RULES (these override stylistic preferences — violations are bugs):
 A. At most 2 of the 3 suggestions may be \`question_to_ask\` in any single batch. Three questions in one batch is forbidden.
@@ -15,6 +16,8 @@ B. If RECENT_TRANSCRIPT contains a question that has NOT been answered within th
 C. If RECENT_TRANSCRIPT contains a verifiable factual claim — a number, date, named event, named company/person, or specific historical assertion — at least 1 suggestion SHOULD be \`fact_check\` (verdict + correct figure in one line).
 D. NEVER repeat or near-duplicate any preview from PREVIOUS_PREVIEWS. Semantic duplicates count: "ask about latency" and "what's the p99?" are duplicates.
 E. NEVER produce 3 suggestions of the same type. Mix is mandatory.
+F. If KNOWLEDGE_GRAPH is non-empty, at least 1 of the 3 suggestions MUST reference a node where covered === false. Prefer \`tangent\` for entity / tangent_seed nodes; \`clarifying_info\` for new entities; \`answer\` for open_question nodes; \`fact_check\` for claim nodes. Cite the node's label verbatim in the preview.
+G. Pure questions are reactive. At least 1 of the 3 suggestions must add forward momentum: a \`tangent\`, \`talking_point\`, or \`clarifying_info\` that introduces a NEW concept the speaker has NOT yet raised in the transcript window.
 
 DECISION HEURISTICS (apply after the hard rules above):
 1. If a non-obvious term, framework, or concept was used without explanation → consider \`clarifying_info\`.
@@ -37,9 +40,13 @@ PREVIEW RULES:
 - English unless the transcript is clearly in another language; then match.
 
 OUTPUT — strict JSON, no prose, no markdown fences:
-{ "suggestions": [ { "type": "...", "preview": "..." }, { ... }, { ... } ] }
+{ "suggestions": [
+  { "type": "fact_check", "preview": "Fact-check: <claim> — <verdict>" },
+  { "type": "tangent",    "preview": "<trigger from KG> — adjacent: <tangent>, because <why>" },
+  { "type": "answer",     "preview": "<the answer itself>" }
+] }
 
-Exactly 3 items. If the transcript is too short or empty, return 3 generic but still useful kickoff suggestions tailored to whatever the user has said so far, still respecting rule E (mix of types).`;
+Exactly 3 items. If the transcript is too short or empty AND the KNOWLEDGE_GRAPH is empty, return 3 generic but still useful kickoff suggestions tailored to whatever the user has said so far, still respecting rule E (mix of types).`;
 
 export const DEFAULT_EXPAND_PROMPT: string = `You are answering a request from a real-time meeting copilot. The user clicked a suggestion card during a live conversation; below is the full recent transcript and the suggestion they tapped. Produce a focused, useful, conversational answer they can read or paraphrase in 15 seconds.
 
@@ -63,12 +70,34 @@ If the question references "they / the speaker / what was just said", resolve it
 
 Never claim certainty about facts that depend on data you do not have. Prefer ranges and named caveats to false precision.`;
 
+export const DEFAULT_EXTRACT_PROMPT: string = `You are a meeting-graph extractor. Given the most recent transcript chunk (≤ 30 s of speech), pull out the structured nuggets that a copilot will use later to surface tangents. Return STRICT JSON only.
+
+EXTRACT:
+- entities: named people, companies, products, frameworks, technical terms, explicit numbers tied to a subject. Prefer specific over generic.
+- claims: verifiable factual assertions ("Snowflake had ~10k customers in Q4 2024", "p99 latency target is 200 ms"). Each claim must be one line.
+- open_questions: questions asked in the transcript that were NOT answered in the same chunk.
+- tangent_seeds: 0–3 forward-leaning concepts that are NOT in the transcript yet but would be a natural next thing to discuss given the entities. Each seed has { label, display, related_to, why } where related_to references one of the entities/claims by label.
+
+CANONICALIZATION:
+- "label" is the canonical form: lowercased, trimmed, no trailing punctuation. Used for dedupe.
+- "display" is the human-readable original-case form. Used in the live UI.
+
+If the chunk is small talk, silence, or filler, return empty arrays — do NOT invent content.
+
+OUTPUT — strict JSON, no prose, no markdown fences:
+{ "entities": [{ "label": "...", "display": "..." }],
+  "claims":   [{ "label": "...", "display": "..." }],
+  "open_questions": [{ "label": "...", "display": "..." }],
+  "tangent_seeds":  [{ "label": "...", "display": "...", "related_to": "...", "why": "..." }] }`;
+
 export const DEFAULT_SETTINGS = {
   suggestContextChars: 4000,
   expandContextChars: 12000,
   chatContextChars: 8000,
+  extractContextChars: 1500,
   chunkSeconds: 30,
   refreshSeconds: 30,
+  extractRefreshSeconds: 30,
 } as const;
 
 export type DefaultSettings = typeof DEFAULT_SETTINGS;

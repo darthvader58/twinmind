@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ChatMessage, Suggestion } from '@/lib/types';
+import type { ChatMessage, Suggestion, TopicGraphNode } from '@/lib/types';
 
 import {
   buildChatMessages,
   buildExpandMessages,
+  buildExtractMessages,
   buildSuggestMessages,
   sizeTranscript,
   sliceTail,
@@ -12,8 +13,26 @@ import {
 import {
   DEFAULT_CHAT_PROMPT,
   DEFAULT_EXPAND_PROMPT,
+  DEFAULT_EXTRACT_PROMPT,
   DEFAULT_SUGGEST_PROMPT,
 } from './defaults';
+
+const graphNode = (
+  overrides: Partial<TopicGraphNode> & {
+    label: string;
+    kind: TopicGraphNode['kind'];
+  },
+): TopicGraphNode => ({
+  id: overrides.label,
+  label: overrides.label,
+  display: overrides.label,
+  kind: overrides.kind,
+  firstMentionedAtMs: 1000,
+  lastMentionedAtMs: 1000,
+  covered: false,
+  relatedLabels: [],
+  ...overrides,
+});
 
 describe('sliceTail', () => {
   it('returns input unchanged when length <= max', () => {
@@ -149,6 +168,82 @@ describe('buildSuggestMessages', () => {
     });
     expect(msgs[1]?.content).toContain('RECENT_TRANSCRIPT (last ~123 chars):');
     expect(msgs[1]?.content).toContain('"""');
+  });
+
+  it('renders the empty-graph marker when topicGraph is undefined or []', () => {
+    const a = buildSuggestMessages({
+      transcriptWindow: 'x',
+      previousPreviews: [],
+      settings,
+    });
+    const b = buildSuggestMessages({
+      transcriptWindow: 'x',
+      previousPreviews: [],
+      settings,
+      topicGraph: [],
+    });
+    for (const msgs of [a, b]) {
+      expect(msgs[1]?.content).toContain(
+        'KNOWLEDGE_GRAPH (topics raised so far in the call): (empty — no nodes yet)',
+      );
+    }
+  });
+
+  it('renders KNOWLEDGE_GRAPH lines with [kind], display, and (covered: ...)', () => {
+    const msgs = buildSuggestMessages({
+      transcriptWindow: 'we talked about Whisper',
+      previousPreviews: [],
+      settings,
+      topicGraph: [
+        graphNode({ label: 'whisper', display: 'Whisper', kind: 'entity' }),
+        graphNode({
+          label: 'p99 latency target is 200 ms',
+          display: 'p99 latency target is 200 ms',
+          kind: 'claim',
+          covered: true,
+        }),
+        graphNode({
+          label: 'whisperx',
+          display: 'WhisperX',
+          kind: 'tangent_seed',
+          relatedLabels: ['speaker diarization'],
+        }),
+      ],
+    });
+    const user = msgs[1]?.content ?? '';
+    expect(user).toContain(
+      'KNOWLEDGE_GRAPH (topics raised so far in the call; "covered" means already explored or already suggested):',
+    );
+    expect(user).toContain('- [entity] Whisper (covered: false)');
+    expect(user).toContain('- [claim] p99 latency target is 200 ms (covered: true)');
+    expect(user).toContain(
+      '- [tangent_seed] WhisperX → speaker diarization (covered: false)',
+    );
+  });
+
+  it('user-message reminder restates rules F and G so JSON-mode formatting cannot drop them', () => {
+    const msgs = buildSuggestMessages({
+      transcriptWindow: 'x',
+      previousPreviews: [],
+      settings,
+    });
+    const user = msgs[1]?.content ?? '';
+    expect(user).toContain('rule F');
+    expect(user).toContain('rule G');
+    expect(user).toContain('forward momentum');
+  });
+});
+
+describe('buildExtractMessages', () => {
+  it('system equals settings.extractPrompt; user wraps the chunk in triple-quotes', () => {
+    const msgs = buildExtractMessages({
+      chunkText: 'hello there.',
+      settings: { extractPrompt: 'SYSTEM_EXTRACT' },
+    });
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0]).toEqual({ role: 'system', content: 'SYSTEM_EXTRACT' });
+    expect(msgs[1]?.role).toBe('user');
+    expect(msgs[1]?.content).toBe('RECENT_CHUNK:\n"""\nhello there.\n"""');
   });
 });
 
