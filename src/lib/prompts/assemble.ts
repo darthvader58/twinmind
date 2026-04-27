@@ -39,6 +39,16 @@ export function sliceTail(text: string, maxChars: number): string {
   return slice.slice(cut);
 }
 
+/**
+ * Full-when-small / tail-when-large windowing per CLAUDE.md §7.3.
+ * The route is the only impure caller that decides whether to slice; this
+ * helper just encodes the rule so it can be unit-tested in isolation.
+ */
+export function sizeTranscript(transcript: string, ceiling: number): string {
+  if (transcript.length <= ceiling) return transcript;
+  return sliceTail(transcript, ceiling);
+}
+
 export function buildSuggestMessages(args: {
   transcriptWindow: string;
   previousPreviews: string[];
@@ -47,15 +57,15 @@ export function buildSuggestMessages(args: {
   const { transcriptWindow, previousPreviews, settings } = args;
   const previewsBlock =
     previousPreviews.length === 0
-      ? 'PREVIOUS_PREVIEWS (avoid repeating): (none yet)'
-      : `PREVIOUS_PREVIEWS (avoid repeating):\n${previousPreviews.map((p) => `- ${p}`).join('\n')}`;
+      ? 'PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates): (none yet)'
+      : `PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates):\n${previousPreviews.map((p) => `- ${p}`).join('\n')}`;
 
   const transcriptIsEmpty = transcriptWindow.trim() === '';
   const transcriptBlock = transcriptIsEmpty
     ? 'RECENT_TRANSCRIPT (last ~0 chars): (no transcript yet — produce 3 useful kickoff suggestions for an unknown live conversation)'
     : `RECENT_TRANSCRIPT (last ~${transcriptWindow.length} chars):\n"""\n${transcriptWindow}\n"""`;
 
-  const userContent = `${previewsBlock}\n\n${transcriptBlock}\n\nNow produce exactly 3 suggestions per the rules.`;
+  const userContent = `${previewsBlock}\n\n${transcriptBlock}\n\nNow produce exactly 3 suggestions per the rules. Remember: max 2 of type \`question_to_ask\`; if a question is unanswered in the window, include at least 1 \`answer\`; if a verifiable claim was made, include at least 1 \`fact_check\`.`;
 
   return [
     { role: 'system', content: settings.suggestPrompt },

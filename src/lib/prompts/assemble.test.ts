@@ -69,8 +69,22 @@ describe('buildSuggestMessages', () => {
     expect(msgs).toHaveLength(2);
     expect(msgs[0]).toEqual({ role: 'system', content: 'SYSTEM_SUGGEST' });
     expect(msgs[1]?.role).toBe('user');
-    expect(msgs[1]?.content).toContain('PREVIOUS_PREVIEWS (avoid repeating): (none yet)');
+    expect(msgs[1]?.content).toContain(
+      'PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates): (none yet)',
+    );
     expect(msgs[1]?.content).toContain('Now produce exactly 3 suggestions per the rules.');
+  });
+
+  it('user message includes the rule reminder so it survives JSON-mode formatting', () => {
+    const msgs = buildSuggestMessages({
+      transcriptWindow: 'anything',
+      previousPreviews: [],
+      settings,
+    });
+    const user = msgs[1]?.content ?? '';
+    expect(user).toContain('max 2 of type `question_to_ask`');
+    expect(user).toContain('include at least 1 `answer`');
+    expect(user).toContain('include at least 1 `fact_check`');
   });
 
   it('with two previous previews: user includes "- prev1" and "- prev2"', () => {
@@ -80,7 +94,9 @@ describe('buildSuggestMessages', () => {
       settings,
     });
     const user = msgs[1]?.content ?? '';
-    expect(user).toContain('PREVIOUS_PREVIEWS (avoid repeating):');
+    expect(user).toContain(
+      'PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates):',
+    );
     expect(user).toContain('- prev1');
     expect(user).toContain('- prev2');
     expect(user).not.toContain('(none yet)');
@@ -169,6 +185,8 @@ describe('default prompts contain key phrases verbatim', () => {
     expect(DEFAULT_SUGGEST_PROMPT.length).toBeGreaterThan(0);
     expect(DEFAULT_SUGGEST_PROMPT.includes('EXACTLY 3')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('PREVIEW RULES')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('HARD STRUCTURAL RULES')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('ANTI-PATTERNS')).toBe(true);
   });
 
   it('DEFAULT_EXPAND_PROMPT is non-empty and has the en-dash length marker', () => {

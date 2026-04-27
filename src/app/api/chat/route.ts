@@ -6,6 +6,7 @@ import { toSafeError } from '@/lib/groq/errors';
 import {
   buildChatMessages,
   buildExpandMessages,
+  sizeTranscript,
   type ChatMsg,
 } from '@/lib/prompts/assemble';
 import { sseStream } from '@/lib/sse/server';
@@ -40,6 +41,8 @@ const ChatRequestSchema = z.discriminatedUnion('mode', [
     history: z.array(ChatHistoryItem),
     expandPrompt: z.string().min(1),
     chatPrompt: z.string().min(1),
+    expandContextChars: z.number().int().positive(),
+    chatContextChars: z.number().int().positive(),
   }),
   z.object({
     mode: z.literal('chat'),
@@ -48,6 +51,8 @@ const ChatRequestSchema = z.discriminatedUnion('mode', [
     history: z.array(ChatHistoryItem),
     expandPrompt: z.string().min(1),
     chatPrompt: z.string().min(1),
+    expandContextChars: z.number().int().positive(),
+    chatContextChars: z.number().int().positive(),
   }),
 ]);
 
@@ -109,17 +114,20 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const data = parsed.data;
+  const ceiling =
+    data.mode === 'expand' ? data.expandContextChars : data.chatContextChars;
+  const sized = sizeTranscript(data.transcript, ceiling);
   const messages: ChatMsg[] =
     data.mode === 'expand'
       ? buildExpandMessages({
           suggestion: data.suggestion,
-          transcript: data.transcript,
+          transcript: sized,
           settings: { expandPrompt: data.expandPrompt },
         })
       : buildChatMessages({
           history: data.history,
           userText: data.userText,
-          transcript: data.transcript,
+          transcript: sized,
           settings: { chatPrompt: data.chatPrompt },
         });
 

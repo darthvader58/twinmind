@@ -2,7 +2,6 @@
 
 import { useCallback } from 'react';
 
-import { sliceTail } from '@/lib/prompts/assemble';
 import { readSSE } from '@/lib/sse/client';
 import { useSessionStore } from '@/lib/store/session';
 import { useSettingsStore } from '@/lib/store/settings';
@@ -114,7 +113,7 @@ export function useChat(): UseChatApi {
     }
     session.pushUserMessage(s.preview, { id: s.id, preview: s.preview });
     const aid = session.startAssistantMessage(s.id);
-    const transcript = sliceTail(buildFullTranscript(), settings.expandContextChars);
+    const transcript = buildFullTranscript();
     const history = snapshotHistory({ dropTrailingUser: false });
     await runStream({
       body: {
@@ -124,6 +123,8 @@ export function useChat(): UseChatApi {
         history,
         expandPrompt: settings.expandPrompt,
         chatPrompt: settings.chatPrompt,
+        expandContextChars: settings.expandContextChars,
+        chatContextChars: settings.chatContextChars,
       },
       apiKey: settings.apiKey,
       assistantId: aid,
@@ -146,7 +147,7 @@ export function useChat(): UseChatApi {
     }
     session.pushUserMessage(trimmed);
     const aid = session.startAssistantMessage();
-    const transcript = sliceTail(buildFullTranscript(), settings.chatContextChars);
+    const transcript = buildFullTranscript();
     const history = snapshotHistory({ dropTrailingUser: true });
     await runStream({
       body: {
@@ -156,6 +157,8 @@ export function useChat(): UseChatApi {
         history,
         expandPrompt: settings.expandPrompt,
         chatPrompt: settings.chatPrompt,
+        expandContextChars: settings.expandContextChars,
+        chatContextChars: settings.chatContextChars,
       },
       apiKey: settings.apiKey,
       assistantId: aid,
