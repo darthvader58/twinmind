@@ -1,0 +1,29 @@
+:root {
+  --bg: #0b1020;
+  --panel: #0f1530;
+  --panel-border: #1f2a44;
+  --panel-inner: #1c2740;
+  --fg: #e6e8ef;
+  --muted: #8a93a8;
+  --accent-blue: #7aa7ff;
+  --accent-violet: #b794ff;
+  --accent-green: #7be0a4;
+  --accent-amber: #ffcd6a;
+  --accent-cyan: #7ad8e6;
+  --focus-ring: #5b8def;
+}
+
+.dark {
+  --bg: #0b1020;
+  --panel: #0f1530;
+  --panel-border: #1f2a44;
+  --panel-inner: #1c2740;
+  --fg: #e6e8ef;
+  --muted: #8a93a8;
+  --accent-blue: #7aa7ff;
+  --accent-violet: #b794ff;
+  --accent-green: #7be0a4;
+  --accent-amber: #ffcd6a;
+  --accent-cyan: #7ad8e6;
+  --focus-ring: #5b8def;
+}
