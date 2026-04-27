@@ -7,12 +7,86 @@ import { useSessionStore } from '@/lib/store/session';
 import { useSettingsStore } from '@/lib/store/settings';
 import {
   makeError,
+  type TopicGraphNode,
+  type TopicNodeKind,
   type TranscriptChunk,
   type TwinMindError,
   type TwinMindErrorKind,
 } from '@/lib/types';
 
 import type { UseRecorderApi } from './useRecorder';
+
+interface ExtractedItem {
+  label: string;
+  display: string;
+  related_to?: string;
+  why?: string;
+}
+
+interface ExtractResponseBody {
+  entities?: ExtractedItem[];
+  claims?: ExtractedItem[];
+  open_questions?: ExtractedItem[];
+  tangent_seeds?: ExtractedItem[];
+}
+
+const canon = (s: string): string => s.trim().toLowerCase();
+
+const mapItems = (
+  items: ExtractedItem[] | undefined,
+  kind: TopicNodeKind,
+  startedAtMs: number,
+): Omit<TopicGraphNode, 'id'>[] => {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((it) => typeof it.label === 'string' && it.label.trim() !== '')
+    .map((it) => {
+      const related: string[] = [];
+      if (kind === 'tangent_seed') {
+        if (typeof it.related_to === 'string' && it.related_to.trim() !== '') {
+          related.push(canon(it.related_to));
+        }
+      }
+      return {
+        label: canon(it.label),
+        display: it.display.trim() === '' ? it.label.trim() : it.display.trim(),
+        kind,
+        firstMentionedAtMs: startedAtMs,
+        lastMentionedAtMs: startedAtMs,
+        covered: false,
+        relatedLabels: related,
+      };
+    });
+};
+
+const fireExtract = async (chunk: TranscriptChunk): Promise<void> => {
+  if (chunk.text.trim() === '' || chunk.error) return;
+  const settings = useSettingsStore.getState();
+  if (settings.apiKey === '') return;
+  try {
+    const res = await fetch('/api/extract', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-groq-key': settings.apiKey },
+      body: JSON.stringify({
+        chunkText: chunk.text,
+        extractPrompt: settings.extractPrompt,
+      }),
+    });
+    if (!res.ok) return;
+    const body = (await res.json().catch(() => ({}))) as ExtractResponseBody;
+    const merged: Omit<TopicGraphNode, 'id'>[] = [
+      ...mapItems(body.entities, 'entity', chunk.startedAtMs),
+      ...mapItems(body.claims, 'claim', chunk.startedAtMs),
+      ...mapItems(body.open_questions, 'open_question', chunk.startedAtMs),
+      ...mapItems(body.tangent_seeds, 'tangent_seed', chunk.startedAtMs),
+    ];
+    if (merged.length > 0) {
+      useSessionStore.getState().mergeGraphNodes(merged);
+    }
+  } catch {
+    /* fire-and-forget — extraction failure must never block the transcript */
+  }
+};
 
 interface TranscribeSuccess {
   text: string;
@@ -142,6 +216,9 @@ export const useTranscriptionLoop = (recorder: UseRecorderApi): void => {
 
       if (!cancelled) {
         appendChunk(appended);
+        if (!appended.error && appended.text.trim() !== '') {
+          void fireExtract(appended);
+        }
         if (queueRef.current.length > 0) void drain();
       }
     };

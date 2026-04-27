@@ -4,15 +4,17 @@ import { persist } from 'zustand/middleware';
 import {
   DEFAULT_CHAT_PROMPT,
   DEFAULT_EXPAND_PROMPT,
+  DEFAULT_EXTRACT_PROMPT,
   DEFAULT_SETTINGS,
   DEFAULT_SUGGEST_PROMPT,
 } from '@/lib/prompts/defaults';
 
-export type PromptKind = 'suggest' | 'expand' | 'chat';
+export type PromptKind = 'suggest' | 'expand' | 'chat' | 'extract';
 export type NumberSettingKind =
   | 'suggestContextChars'
   | 'expandContextChars'
   | 'chatContextChars'
+  | 'extractContextChars'
   | 'chunkSeconds'
   | 'refreshSeconds';
 
@@ -21,9 +23,11 @@ export interface SettingsState {
   suggestPrompt: string;
   expandPrompt: string;
   chatPrompt: string;
+  extractPrompt: string;
   suggestContextChars: number;
   expandContextChars: number;
   chatContextChars: number;
+  extractContextChars: number;
   chunkSeconds: number;
   refreshSeconds: number;
 
@@ -38,9 +42,11 @@ const baseDefaults = {
   suggestPrompt: DEFAULT_SUGGEST_PROMPT,
   expandPrompt: DEFAULT_EXPAND_PROMPT,
   chatPrompt: DEFAULT_CHAT_PROMPT,
+  extractPrompt: DEFAULT_EXTRACT_PROMPT,
   suggestContextChars: DEFAULT_SETTINGS.suggestContextChars,
   expandContextChars: DEFAULT_SETTINGS.expandContextChars,
   chatContextChars: DEFAULT_SETTINGS.chatContextChars,
+  extractContextChars: DEFAULT_SETTINGS.extractContextChars,
   chunkSeconds: DEFAULT_SETTINGS.chunkSeconds,
   refreshSeconds: DEFAULT_SETTINGS.refreshSeconds,
 };
@@ -57,7 +63,8 @@ export const useSettingsStore = create<SettingsState>()(
       setPrompt: (kind, value) => {
         if (kind === 'suggest') set({ suggestPrompt: value });
         else if (kind === 'expand') set({ expandPrompt: value });
-        else set({ chatPrompt: value });
+        else if (kind === 'chat') set({ chatPrompt: value });
+        else set({ extractPrompt: value });
       },
 
       setNumber: (kind, n) => {
@@ -76,9 +83,11 @@ export const useSettingsStore = create<SettingsState>()(
         suggestPrompt: state.suggestPrompt,
         expandPrompt: state.expandPrompt,
         chatPrompt: state.chatPrompt,
+        extractPrompt: state.extractPrompt,
         suggestContextChars: state.suggestContextChars,
         expandContextChars: state.expandContextChars,
         chatContextChars: state.chatContextChars,
+        extractContextChars: state.extractContextChars,
         chunkSeconds: state.chunkSeconds,
         refreshSeconds: state.refreshSeconds,
       }),

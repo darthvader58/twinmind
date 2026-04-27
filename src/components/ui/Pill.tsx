@@ -78,6 +78,13 @@ export const TYPE_COLOR: Record<
     border: 'border-[var(--accent-cyan)]/40',
     label: 'Clarify',
   },
+  tangent: {
+    ring: 'ring-[var(--accent-pink)]/40',
+    bg: 'bg-[var(--accent-pink)]/10',
+    text: 'text-[var(--accent-pink)]',
+    border: 'border-[var(--accent-pink)]/40',
+    label: 'Tangent',
+  },
 };
 
 export const TypePill = ({ type, className }: { type: SuggestionType; className?: string }) => {

@@ -10,6 +10,7 @@ import {
   makeError,
   type Suggestion,
   type SuggestionBatch,
+  type TopicGraphNode,
   type TwinMindError,
 } from '@/lib/types';
 
@@ -18,6 +19,26 @@ interface SuggestResponseBody {
   generatedAt?: number;
   latencyMs?: number;
   error?: TwinMindError;
+}
+
+function matchCoveredLabels(
+  suggestions: readonly Suggestion[],
+  graph: readonly TopicGraphNode[],
+): string[] {
+  if (graph.length === 0) return [];
+  const previewsLower = suggestions.map((s) => s.preview.toLowerCase());
+  const matched = new Set<string>();
+  for (const node of graph) {
+    if (node.covered) continue;
+    if (node.label.length < 3) continue;
+    for (const p of previewsLower) {
+      if (p.includes(node.label) || p.includes(node.display.toLowerCase())) {
+        matched.add(node.label);
+        break;
+      }
+    }
+  }
+  return [...matched];
 }
 
 export interface UseSuggestionLoopApi {
@@ -54,6 +75,7 @@ export function useSuggestionLoop(): UseSuggestionLoopApi {
     const previousPreviews = session.batches
       .slice(0, 2)
       .flatMap((b) => b.suggestions.map((s) => s.preview));
+    const topicGraph = session.topicGraph.slice(-30);
 
     try {
       const res = await fetch('/api/suggest', {
@@ -65,6 +87,7 @@ export function useSuggestionLoop(): UseSuggestionLoopApi {
           previousPreviews,
           suggestPrompt: settings.suggestPrompt,
           contextChars: settings.suggestContextChars,
+          topicGraph,
         }),
       });
       const body = (await res.json().catch(() => ({}))) as SuggestResponseBody;
@@ -85,6 +108,8 @@ export function useSuggestionLoop(): UseSuggestionLoopApi {
             ...(typeof body.latencyMs === 'number' ? { latencyMs: body.latencyMs } : {}),
           };
           session.prependBatch(batch);
+          const matched = matchCoveredLabels(batch.suggestions, topicGraph);
+          if (matched.length > 0) session.markGraphNodesCovered(matched);
         }
       }
     } catch (err) {

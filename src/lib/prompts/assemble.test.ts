@@ -24,9 +24,7 @@ const graphNode = (
   },
 ): TopicGraphNode => ({
   id: overrides.label,
-  label: overrides.label,
   display: overrides.label,
-  kind: overrides.kind,
   firstMentionedAtMs: 1000,
   lastMentionedAtMs: 1000,
   covered: false,
@@ -307,6 +305,17 @@ describe('default prompts contain key phrases verbatim', () => {
     expect(DEFAULT_SUGGEST_PROMPT.includes('PREVIEW RULES')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('HARD STRUCTURAL RULES')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('ANTI-PATTERNS')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('• tangent')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('KNOWLEDGE_GRAPH')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('forward momentum')).toBe(true);
+  });
+
+  it('DEFAULT_EXTRACT_PROMPT is non-empty and lists the four output buckets', () => {
+    expect(DEFAULT_EXTRACT_PROMPT.length).toBeGreaterThan(0);
+    expect(DEFAULT_EXTRACT_PROMPT.includes('entities')).toBe(true);
+    expect(DEFAULT_EXTRACT_PROMPT.includes('claims')).toBe(true);
+    expect(DEFAULT_EXTRACT_PROMPT.includes('open_questions')).toBe(true);
+    expect(DEFAULT_EXTRACT_PROMPT.includes('tangent_seeds')).toBe(true);
   });
 
   it('DEFAULT_EXPAND_PROMPT is non-empty and has the en-dash length marker', () => {

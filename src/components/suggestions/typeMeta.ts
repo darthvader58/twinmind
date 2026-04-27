@@ -50,4 +50,13 @@ export const TYPE_META: Record<SuggestionType, TypeMeta> = {
     label: 'Clarify',
     description: 'A tight definition for a term or concept used.',
   },
+  tangent: {
+    ring: 'ring-[var(--accent-pink)]/40',
+    bg: 'bg-[var(--accent-pink)]/10',
+    text: 'text-[var(--accent-pink)]',
+    border: 'border-[var(--accent-pink)]/40',
+    label: 'Tangent',
+    description:
+      'An adjacent concept that branches off from a topic the speaker has raised.',
+  },
 };

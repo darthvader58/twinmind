@@ -16,6 +16,7 @@ export const SettingsModal = ({ open, onClose }: Props) => {
   const suggestPrompt = useSettingsStore((s) => s.suggestPrompt);
   const expandPrompt = useSettingsStore((s) => s.expandPrompt);
   const chatPrompt = useSettingsStore((s) => s.chatPrompt);
+  const extractPrompt = useSettingsStore((s) => s.extractPrompt);
   const suggestContextChars = useSettingsStore((s) => s.suggestContextChars);
   const expandContextChars = useSettingsStore((s) => s.expandContextChars);
   const chatContextChars = useSettingsStore((s) => s.chatContextChars);
@@ -53,6 +54,11 @@ export const SettingsModal = ({ open, onClose }: Props) => {
             label="Chat prompt"
             value={chatPrompt}
             onChange={(v) => setPrompt('chat', v)}
+          />
+          <PromptEditor
+            label="Extract prompt (knowledge graph)"
+            value={extractPrompt}
+            onChange={(v) => setPrompt('extract', v)}
           />
         </section>
 
