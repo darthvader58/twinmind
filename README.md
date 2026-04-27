@@ -83,13 +83,24 @@ ALLOWED TYPES (pick the right MIX based on what is happening RIGHT NOW):
 • fact_check       — a verifiable claim was just made; either confirm with a precise correction OR flag uncertainty with the actual figure if known. State the claim AND the verdict in one line.
 • clarifying_info  — a term, person, framework, or number was used that needs unpacking; explain it tightly.
 
-DECISION HEURISTICS (apply in order):
-1. If a question was asked and is still unanswered in the window → at least one `answer`.
-2. If a verifiable factual claim was made (numbers, dates, named events) → strongly consider `fact_check`.
-3. If a non-obvious term/concept was used → consider `clarifying_info`.
-4. If the conversation is exploratory or planning → bias toward `question_to_ask` + `talking_point`.
-5. NEVER repeat or near-duplicate a preview from PREVIOUS_PREVIEWS.
-6. NEVER pad with three of the same type unless the context truly demands it.
+HARD STRUCTURAL RULES (these override stylistic preferences — violations are bugs):
+A. At most 2 of the 3 suggestions may be `question_to_ask` in any single batch. Three questions in one batch is forbidden.
+B. If RECENT_TRANSCRIPT contains a question that has NOT been answered within the window, at least 1 suggestion MUST be `answer`. Lead the preview with the actual answer, not "you could say…".
+C. If RECENT_TRANSCRIPT contains a verifiable factual claim — a number, date, named event, named company/person, or specific historical assertion — at least 1 suggestion SHOULD be `fact_check` (verdict + correct figure in one line).
+D. NEVER repeat or near-duplicate any preview from PREVIOUS_PREVIEWS. Semantic duplicates count: "ask about latency" and "what's the p99?" are duplicates.
+E. NEVER produce 3 suggestions of the same type. Mix is mandatory.
+
+DECISION HEURISTICS (apply after the hard rules above):
+1. If a non-obvious term, framework, or concept was used without explanation → consider `clarifying_info`.
+2. If the conversation is exploratory, planning, or the user is the listener (not the speaker) → bias toward `question_to_ask` + `talking_point`.
+3. If the user just spoke and may need to defend or elaborate a position → favor `talking_point` with concrete supporting numbers.
+4. If the transcript window is silent on factual content (small talk, social filler) → produce 3 useful kickoff suggestions (a question_to_ask, a talking_point, and a clarifying_info) that nudge the conversation back to substance.
+
+ANTI-PATTERNS — these are common failure modes; refuse to produce them:
+- Three vague "ask them about X" cards. (Violates rule A.)
+- A `fact_check` that just restates the claim without a verdict.
+- An `answer` that is actually a question in disguise ("Could it be that…?").
+- A preview that opens with "You could…", "Maybe…", "Consider…", or any other hedge. Lead with the substance.
 
 PREVIEW RULES:
 - ≤ 140 characters.
@@ -102,10 +113,10 @@ PREVIEW RULES:
 OUTPUT — strict JSON, no prose, no markdown fences:
 { "suggestions": [ { "type": "...", "preview": "..." }, { ... }, { ... } ] }
 
-Exactly 3 items. If the transcript is too short or empty, return 3 generic but still useful kickoff suggestions tailored to whatever the user has said so far.
+Exactly 3 items. If the transcript is too short or empty, return 3 generic but still useful kickoff suggestions tailored to whatever the user has said so far, still respecting rule E (mix of types).
 ```
 
-**Why this shape.** The preview is the contract — it has to deliver value on its own because users will skim it during a live call. Five typed suggestions force the model to think about *why* each card exists rather than producing three generic "ask a clarifying question" cards. The decision heuristics are ordered by stakes (an unanswered question right now beats a clarification opportunity later). `previousPreviews` go in via the user message so the model has fresh evidence of what it already said and can avoid near-duplicates — a single bullet of "DO NOT repeat" without exemplars rarely works at temperature 0.4.
+**Why this shape.** The preview is the contract — it has to deliver value on its own because users will skim it during a live call. Five typed suggestions force the model to think about *why* each card exists rather than producing three generic "ask a clarifying question" cards. The HARD STRUCTURAL RULES (A–E) are explicit, labelled, and restated in the user message so they survive JSON-mode formatting; soft "consider" / "NEVER pad" guidance was not enough at temperature 0.4. `previousPreviews` go in via the user message with an explicit "semantic duplicates count" clause so the model has fresh evidence of what it already said and can avoid near-paraphrases — a single bullet of "DO NOT repeat" without exemplars rarely works.
 
 ### Expand prompt (default — used when a suggestion is tapped)
 
@@ -171,6 +182,16 @@ Never claim certainty about facts that depend on data you do not have. Prefer ra
 - **Edge runtime can't use the full Groq SDK ergonomics in some cases.** We use `fetch` semantics that work in both and avoid Node-only APIs. Net: portable, but slightly more verbose than a Node-only implementation would be.
 - **Settings live in `localStorage` (including the API key).** Pasting a key in a public browser is a footgun; we warn but can't prevent. A short-lived in-memory mode (key not persisted across reloads) is a nice optional hardening for shared machines.
 - **Auto-refresh fires only while `recording === 'recording'`.** Manual reload works any time the user wants new suggestions on the existing transcript; the auto-loop is intentionally tied to live capture so you don't burn quota when paused.
+
+### Comparison vs. TwinMind's live suggestions
+
+- We surface exactly 3 typed suggestions per batch (question_to_ask / talking_point / answer / fact_check / clarifying_info); TwinMind's live feature ships 1–2 generic question-asker cards. Five labelled types force the model to *decide* what kind of help the moment needs instead of defaulting to a clarifying question.
+- We stack batches chronologically with timestamps and fade older ones; TwinMind replaces. Stacking lets you scroll back to a suggestion you saw 90 seconds ago without losing the new ones — replacement throws away signal you might have wanted.
+- We enforce type variety via hard structural rules (max 2 questions per batch, mandatory `answer` on unanswered questions, mandatory `fact_check` on verifiable claims); TwinMind does not. Without these rules JSON-mode generations collapse to three "ask them about X" cards, which is the most common failure mode of generic copilot prompts.
+- Our card UI exposes the suggestion TYPE via a colored pill so the user knows what they're tapping; TwinMind uses decorative icons without semantic meaning. The pill is the contract — a green `answer` card tells you exactly what to expect when you tap, so you can pick the right one mid-conversation in under a second.
+- Our expand answers are 90–180 words, lead with the answer, no headers; TwinMind's are 15+ line strategic briefings. A meeting copilot is competing with the speaker for your attention — anything you can't whisper-read in 15 seconds is the wrong shape.
+- We pass the previous 6 previews into the suggest prompt with explicit anti-duplication instruction (semantic duplicates included); TwinMind appears to repeat itself across refreshes. Negative exemplars beat abstract "don't repeat" instructions at temperature 0.4, and the semantic-duplicate clause stops `"ask about latency"` and `"what's the p99?"` from both shipping in the same session.
+- For expansions, we pass the full transcript when ≤ expandContextChars and tail-slice only when it exceeds; this preserves early decisions and named entities that a small tail window would lose. Most live conversations stay under 12k chars for a long time, so the cheapest possible win is to just send the whole thing and let the model see who said what at the start.
 
 ## License
 
