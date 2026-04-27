@@ -89,7 +89,7 @@ export class RollingRecorder {
   private audioCtx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private analyserSource: MediaStreamAudioSourceNode | null = null;
-  private analyserBuf: Float32Array | null = null;
+  private analyserBuf: Float32Array<ArrayBuffer> | null = null;
   private rafHandle: number | null = null;
 
   private currentChunkSpeechFrames = 0;
@@ -172,7 +172,7 @@ export class RollingRecorder {
       this.audioCtx = ctx;
       this.analyserSource = source;
       this.analyser = analyser;
-      this.analyserBuf = new Float32Array(analyser.fftSize);
+      this.analyserBuf = new Float32Array(new ArrayBuffer(analyser.fftSize * 4));
     } catch {
       /* analyser is best-effort; without it we still rotate on the maxChunkMs ceiling */
     }

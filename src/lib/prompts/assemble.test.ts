@@ -115,19 +115,19 @@ describe('buildSuggestMessages', () => {
     expect(msgs[1]?.content).toContain(
       'PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates): (none yet)',
     );
-    expect(msgs[1]?.content).toContain('Now produce exactly 3 suggestions per the rules.');
+    expect(msgs[1]?.content).toContain('Now produce exactly 3 suggestions');
   });
 
-  it('user message includes the rule reminder so it survives JSON-mode formatting', () => {
+  it('user message reminds the model to mirror the user\'s next thought', () => {
     const msgs = buildSuggestMessages({
       transcriptWindow: 'anything',
       previousPreviews: [],
       settings,
     });
     const user = msgs[1]?.content ?? '';
-    expect(user).toContain('max 2 of type `question_to_ask`');
-    expect(user).toContain('include at least 1 `answer`');
-    expect(user).toContain('include at least 1 `fact_check`');
+    expect(user).toContain("user's own next thought");
+    expect(user).toContain('Vary the types');
+    expect(user).toContain('PREVIOUS_PREVIEWS');
   });
 
   it('with two previous previews: user includes "- prev1" and "- prev2"', () => {
@@ -220,16 +220,24 @@ describe('buildSuggestMessages', () => {
     );
   });
 
-  it('user-message reminder restates rules F and G so JSON-mode formatting cannot drop them', () => {
-    const msgs = buildSuggestMessages({
-      transcriptWindow: 'x',
-      previousPreviews: [],
-      settings,
-    });
-    const user = msgs[1]?.content ?? '';
-    expect(user).toContain('rule F');
-    expect(user).toContain('rule G');
-    expect(user).toContain('forward momentum');
+});
+
+describe('SuggestionTypeSchema (single source of truth for the type enum)', () => {
+  it('accepts every current SuggestionType including tangent', () => {
+    for (const t of [
+      'question_to_ask',
+      'talking_point',
+      'answer',
+      'fact_check',
+      'clarifying_info',
+      'tangent',
+    ] as const) {
+      expect(SuggestionTypeSchema.safeParse(t).success).toBe(true);
+    }
+  });
+
+  it('rejects unknown type strings', () => {
+    expect(SuggestionTypeSchema.safeParse('rant').success).toBe(false);
   });
 });
 
@@ -304,11 +312,11 @@ describe('default prompts contain key phrases verbatim', () => {
     expect(DEFAULT_SUGGEST_PROMPT.length).toBeGreaterThan(0);
     expect(DEFAULT_SUGGEST_PROMPT.includes('EXACTLY 3')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('PREVIEW RULES')).toBe(true);
-    expect(DEFAULT_SUGGEST_PROMPT.includes('HARD STRUCTURAL RULES')).toBe(true);
-    expect(DEFAULT_SUGGEST_PROMPT.includes('ANTI-PATTERNS')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('HOW TO THINK')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('ANTI-REPETITION')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('• tangent')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('KNOWLEDGE_GRAPH')).toBe(true);
-    expect(DEFAULT_SUGGEST_PROMPT.includes('forward momentum')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes("user's own next thought")).toBe(true);
   });
 
   it('DEFAULT_EXTRACT_PROMPT is non-empty and lists the four output buckets', () => {
@@ -319,9 +327,10 @@ describe('default prompts contain key phrases verbatim', () => {
     expect(DEFAULT_EXTRACT_PROMPT.includes('tangent_seeds')).toBe(true);
   });
 
-  it('DEFAULT_EXPAND_PROMPT is non-empty and has the en-dash length marker', () => {
+  it('DEFAULT_EXPAND_PROMPT is non-empty and covers the tangent type', () => {
     expect(DEFAULT_EXPAND_PROMPT.length).toBeGreaterThan(0);
     expect(DEFAULT_EXPAND_PROMPT.includes('LENGTH: 90–180 words')).toBe(true);
+    expect(DEFAULT_EXPAND_PROMPT.includes('tangent')).toBe(true);
   });
 
   it('DEFAULT_CHAT_PROMPT is non-empty and has the lead-with-the-answer marker', () => {
