@@ -6,6 +6,7 @@ import {
   buildChatMessages,
   buildExpandMessages,
   buildSuggestMessages,
+  sizeTranscript,
   sliceTail,
 } from './assemble';
 import {
@@ -54,6 +55,30 @@ describe('sliceTail', () => {
   it('returns empty string when maxChars is 0 or negative', () => {
     expect(sliceTail('hello', 0)).toBe('');
     expect(sliceTail('hello', -5)).toBe('');
+  });
+});
+
+describe('sizeTranscript (full-when-small / tail-when-large per CLAUDE.md §7.3)', () => {
+  it('returns the transcript unchanged when length <= ceiling', () => {
+    const small = 'a'.repeat(5000);
+    expect(sizeTranscript(small, 12000)).toBe(small);
+    expect(sizeTranscript(small, 12000).length).toBe(5000);
+  });
+
+  it('tail-slices when length > ceiling, never exceeding ceiling', () => {
+    const large = 'a'.repeat(30000);
+    const out = sizeTranscript(large, 12000);
+    expect(out.length).toBeLessThanOrEqual(12000);
+    expect(out.length).toBeGreaterThan(0);
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(sizeTranscript('', 12000)).toBe('');
+  });
+
+  it('returns the full transcript when its length equals the ceiling exactly', () => {
+    const exact = 'b'.repeat(12000);
+    expect(sizeTranscript(exact, 12000)).toBe(exact);
   });
 });
 
