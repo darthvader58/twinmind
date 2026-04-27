@@ -13,6 +13,7 @@ import type {
 } from '@/lib/types';
 
 const TOPIC_GRAPH_CAP = 60;
+const MANUAL_PREVIEWS_CAP = 12;
 
 export interface SessionState {
   recording: RecordingState;
@@ -31,6 +32,11 @@ export interface SessionState {
 
   topicGraph: TopicGraphNode[];
 
+  /** Previews of suggestions the user *clicked* — fed into the next suggest
+   *  request alongside auto previews so the model never re-pitches a card
+   *  the user already opened. Capped at MANUAL_PREVIEWS_CAP, FIFO. */
+  manualPreviousPreviews: string[];
+
   setRecording: (state: RecordingState, error?: TwinMindError) => void;
   appendChunk: (chunk: TranscriptChunk) => void;
   markChunkPending: (id: string) => void;
@@ -41,6 +47,7 @@ export interface SessionState {
   setNextRefreshAtMs: (ts: number) => void;
   mergeGraphNodes: (incoming: Omit<TopicGraphNode, 'id'>[]) => void;
   markGraphNodesCovered: (labels: string[]) => void;
+  appendPreviousPreview: (preview: string) => void;
   pushUserMessage: (
     text: string,
     source?: { id: string; preview: string },
@@ -63,6 +70,7 @@ const initialState = {
   chat: [] as ChatMessage[],
   chatStreaming: false,
   topicGraph: [] as TopicGraphNode[],
+  manualPreviousPreviews: [] as string[],
 };
 
 export const useSessionStore = create<SessionState>()(
@@ -190,6 +198,20 @@ export const useSessionStore = create<SessionState>()(
       });
     },
 
+    appendPreviousPreview: (preview) => {
+      const trimmed = preview.trim();
+      if (trimmed === '') return;
+      set((s) => {
+        if (s.manualPreviousPreviews.includes(trimmed)) return s;
+        const next = [...s.manualPreviousPreviews, trimmed];
+        const trimmedList =
+          next.length > MANUAL_PREVIEWS_CAP
+            ? next.slice(next.length - MANUAL_PREVIEWS_CAP)
+            : next;
+        return { manualPreviousPreviews: trimmedList };
+      });
+    },
+
     markGraphNodesCovered: (labels) => {
       if (labels.length === 0) return;
       const needles = labels
@@ -214,6 +236,7 @@ export const useSessionStore = create<SessionState>()(
         ...initialState,
         pendingChunkIds: new Set<string>(),
         topicGraph: [],
+        manualPreviousPreviews: [],
       });
     },
   })),

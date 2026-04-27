@@ -51,7 +51,7 @@ const HALLUCINATION_PATTERNS: RegExp[] = [
   /^شكرا لكم على المشاهدة[.!?]?$/,
   /^देखने के लिए धन्यवाद[.!?]?$/,
   /^cảm ơn (các bạn )?đã (xem|theo dõi)[.!?]?$/i,
-  /^izlediğiniz için teşekkür(ler| ederim)[.!?]?$/i,
+  /^[Iİi]zlediğiniz için teşekkür(ler| ederim)[.!?]?$/iu,
 ];
 
 const REPEATED_PHRASE = /^(\b[\w']{1,12}\b)([ ,.!?-]+\1){2,}[.!?]?$/i;

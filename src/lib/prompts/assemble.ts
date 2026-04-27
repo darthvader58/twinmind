@@ -73,9 +73,16 @@ export function buildSuggestMessages(args: {
   previousPreviews: string[];
   settings: SuggestSettings;
   topicGraph?: TopicGraphNode[];
+  /** Optional speaker-annotated transcript (e.g., "[user]: foo  [other]: bar").
+   *  When provided and non-empty, replaces the plain RECENT_TRANSCRIPT block so
+   *  the model knows who said what — the single biggest lever for "feels like
+   *  my next thought" since suggestions for things *I* just said are different
+   *  from suggestions for things *they* just said. */
+  annotatedTranscript?: string;
 }): ChatMsg[] {
   const { transcriptWindow, previousPreviews, settings } = args;
   const topicGraph = args.topicGraph ?? [];
+  const annotated = args.annotatedTranscript ?? '';
   const previewsBlock =
     previousPreviews.length === 0
       ? 'PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates): (none yet)'
@@ -86,10 +93,17 @@ export function buildSuggestMessages(args: {
       ? 'KNOWLEDGE_GRAPH (topics raised so far in the call): (empty — no nodes yet)'
       : `KNOWLEDGE_GRAPH (topics raised so far in the call; "covered" means already explored or already suggested):\n${topicGraph.map(renderGraphLine).join('\n')}`;
 
-  const transcriptIsEmpty = transcriptWindow.trim() === '';
-  const transcriptBlock = transcriptIsEmpty
-    ? 'RECENT_TRANSCRIPT (last ~0 chars): (no transcript yet — produce 3 useful kickoff suggestions for an unknown live conversation)'
-    : `RECENT_TRANSCRIPT (last ~${transcriptWindow.length} chars):\n"""\n${transcriptWindow}\n"""`;
+  const useAnnotated = annotated.trim() !== '';
+  const plainEmpty = transcriptWindow.trim() === '';
+  let transcriptBlock: string;
+  if (useAnnotated) {
+    transcriptBlock = `RECENT_TRANSCRIPT (speaker-annotated; [user] = the wearer of the mic, [other] = someone else, [mixed] = both):\n"""\n${annotated}\n"""`;
+  } else if (plainEmpty) {
+    transcriptBlock =
+      'RECENT_TRANSCRIPT (last ~0 chars): (no transcript yet — produce 3 useful kickoff suggestions for an unknown live conversation)';
+  } else {
+    transcriptBlock = `RECENT_TRANSCRIPT (last ~${transcriptWindow.length} chars):\n"""\n${transcriptWindow}\n"""`;
+  }
 
   const userContent = `${previewsBlock}\n\n${graphBlock}\n\n${transcriptBlock}\n\nNow produce exactly 3 suggestions. Pick the 3 things that would feel most like the user's own next thought. Vary the types. Don't repeat anything in PREVIOUS_PREVIEWS.`;
 

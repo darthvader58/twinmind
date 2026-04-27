@@ -188,6 +188,31 @@ describe('buildSuggestMessages', () => {
     }
   });
 
+  it('uses the annotated transcript block when annotatedTranscript is non-empty (replaces the plain RECENT_TRANSCRIPT)', () => {
+    const msgs = buildSuggestMessages({
+      transcriptWindow: 'plain transcript should not appear',
+      previousPreviews: [],
+      settings,
+      annotatedTranscript: '[user]: hello  [other]: world',
+    });
+    const user = msgs[1]?.content ?? '';
+    expect(user).toContain('speaker-annotated');
+    expect(user).toContain('[user]: hello  [other]: world');
+    expect(user).not.toContain('plain transcript should not appear');
+  });
+
+  it('falls back to the plain transcript window when annotatedTranscript is empty or whitespace', () => {
+    const msgs = buildSuggestMessages({
+      transcriptWindow: 'plain text wins here',
+      previousPreviews: [],
+      settings,
+      annotatedTranscript: '   ',
+    });
+    const user = msgs[1]?.content ?? '';
+    expect(user).toContain('plain text wins here');
+    expect(user).not.toContain('speaker-annotated');
+  });
+
   it('renders KNOWLEDGE_GRAPH lines with [kind], display, and (covered: ...)', () => {
     const msgs = buildSuggestMessages({
       transcriptWindow: 'we talked about Whisper',

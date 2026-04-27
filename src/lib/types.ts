@@ -38,12 +38,17 @@ export interface SuggestionBatch {
   error?: TwinMindError;
 }
 
+export type SpeakerRole = 'user' | 'other' | 'mixed' | 'unknown';
+
 export interface TranscriptChunk {
   id: string;
   text: string;
   startedAtMs: number;
   durationMs: number;
   language?: string;
+  /** Best-effort role classification from local-mic loudness. `unknown` means
+   *  the audio analyser was unavailable or the chunk had no speech frames. */
+  speakerRole?: SpeakerRole;
   error?: TwinMindError;
 }
 

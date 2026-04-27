@@ -7,6 +7,7 @@ import { useSessionStore } from '@/lib/store/session';
 import { useSettingsStore } from '@/lib/store/settings';
 import {
   makeError,
+  type SpeakerRole,
   type TopicGraphNode,
   type TopicNodeKind,
   type TranscriptChunk,
@@ -116,6 +117,25 @@ const extOf = (mime: string): string => {
 };
 
 /**
+ * Classifies the chunk's dominant speaker from local-mic loudness telemetry.
+ * The wearer's voice is loud at the mic; remote-meeting audio coming through
+ * speakers is comparatively quiet. This is a coarse heuristic — never used
+ * for control flow, only as an annotation hint to the suggest prompt.
+ */
+export function classifyRole(c: {
+  speechFrames: number;
+  totalFrames: number;
+  peakRms: number;
+}): SpeakerRole {
+  if (c.totalFrames === 0) return 'unknown';
+  if (c.speechFrames === 0) return 'unknown';
+  const speechRatio = c.speechFrames / Math.max(1, c.totalFrames);
+  if (c.peakRms >= 0.18) return 'user';
+  if (c.peakRms <= 0.04 && speechRatio > 0.2) return 'other';
+  return 'mixed';
+}
+
+/**
  * Drains chunks from the recorder via a single in-flight POST to
  * `/api/transcribe`. Backpressure: only one request is on the wire at any
  * time per loop, so chunk order is preserved. Failures append a typed-error
@@ -140,6 +160,8 @@ export const useTranscriptionLoop = (recorder: UseRecorderApi): void => {
       markPending(next.id);
       const apiKey = useSettingsStore.getState().apiKey;
 
+      const speakerRole = classifyRole(next);
+
       let appended: TranscriptChunk;
       try {
         if (!apiKey) {
@@ -148,6 +170,7 @@ export const useTranscriptionLoop = (recorder: UseRecorderApi): void => {
             text: '',
             startedAtMs: next.startedAtMs,
             durationMs: next.durationMs,
+            speakerRole,
             error: makeError('no_api_key', 'Add your Groq API key in settings.'),
           };
         } else {
@@ -173,6 +196,7 @@ export const useTranscriptionLoop = (recorder: UseRecorderApi): void => {
               text: '',
               startedAtMs: next.startedAtMs,
               durationMs: next.durationMs,
+              speakerRole,
               error: tm,
             };
           } else if (isSuccess(json)) {
@@ -184,6 +208,7 @@ export const useTranscriptionLoop = (recorder: UseRecorderApi): void => {
                 typeof json.durationMs === 'number'
                   ? json.durationMs
                   : next.durationMs,
+              speakerRole,
               ...(typeof json.language === 'string'
                 ? { language: json.language }
                 : {}),
@@ -194,6 +219,7 @@ export const useTranscriptionLoop = (recorder: UseRecorderApi): void => {
               text: '',
               startedAtMs: next.startedAtMs,
               durationMs: next.durationMs,
+              speakerRole,
               error: makeError(
                 'invalid_json',
                 'Transcribe returned an unexpected payload.',
@@ -207,6 +233,7 @@ export const useTranscriptionLoop = (recorder: UseRecorderApi): void => {
           text: '',
           startedAtMs: next.startedAtMs,
           durationMs: next.durationMs,
+          speakerRole,
           error: makeError('network', 'Network error during transcription.', err),
         };
       } finally {

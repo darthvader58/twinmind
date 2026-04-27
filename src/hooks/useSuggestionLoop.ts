@@ -8,9 +8,11 @@ import { useSessionStore } from '@/lib/store/session';
 import { useSettingsStore } from '@/lib/store/settings';
 import {
   makeError,
+  type SpeakerRole,
   type Suggestion,
   type SuggestionBatch,
   type TopicGraphNode,
+  type TranscriptChunk,
   type TwinMindError,
 } from '@/lib/types';
 
@@ -19,6 +21,48 @@ interface SuggestResponseBody {
   generatedAt?: number;
   latencyMs?: number;
   error?: TwinMindError;
+}
+
+const ROLE_TAG: Record<SpeakerRole, string> = {
+  user: '[user]',
+  other: '[other]',
+  mixed: '[mixed]',
+  unknown: '',
+};
+
+/**
+ * Renders speaker-tagged transcript like
+ * `[user]: hello there  [other]: that sounds great`
+ * Adjacent same-role chunks collapse into one tag. Returns '' if every chunk
+ * is `unknown` — the route then falls back to the plain transcript window.
+ */
+export function buildAnnotatedTranscript(
+  chunks: readonly TranscriptChunk[],
+  maxChars: number,
+): string {
+  const speaking = chunks.filter(
+    (c) => !c.error && c.text.trim() !== '' && c.speakerRole !== undefined,
+  );
+  if (speaking.length === 0) return '';
+  const allUnknown = speaking.every((c) => c.speakerRole === 'unknown');
+  if (allUnknown) return '';
+  const parts: string[] = [];
+  let lastRole: SpeakerRole | null = null;
+  for (const c of speaking) {
+    const role = c.speakerRole ?? 'unknown';
+    const tag = ROLE_TAG[role];
+    if (tag === '') {
+      parts.push(c.text.trim());
+    } else if (role !== lastRole) {
+      parts.push(`${tag}: ${c.text.trim()}`);
+    } else {
+      parts.push(c.text.trim());
+    }
+    lastRole = role;
+  }
+  const joined = parts.join('  ');
+  if (joined.length <= maxChars) return joined;
+  return joined.slice(joined.length - maxChars);
 }
 
 function matchCoveredLabels(
@@ -72,9 +116,16 @@ export function useSuggestionLoop(): UseSuggestionLoopApi {
       .map((c) => c.text)
       .join(' ');
     const transcriptWindow = sliceTail(fullTranscript, settings.suggestContextChars);
-    const previousPreviews = session.batches
+    const annotatedTranscript = buildAnnotatedTranscript(
+      session.chunks,
+      settings.suggestContextChars,
+    );
+    const autoPreviews = session.batches
       .slice(0, 2)
       .flatMap((b) => b.suggestions.map((s) => s.preview));
+    const previousPreviews = Array.from(
+      new Set([...session.manualPreviousPreviews, ...autoPreviews]),
+    ).slice(-20);
     const topicGraph = session.topicGraph.slice(-30);
 
     try {
@@ -88,6 +139,7 @@ export function useSuggestionLoop(): UseSuggestionLoopApi {
           suggestPrompt: settings.suggestPrompt,
           contextChars: settings.suggestContextChars,
           topicGraph,
+          ...(annotatedTranscript !== '' ? { annotatedTranscript } : {}),
         }),
       });
       const body = (await res.json().catch(() => ({}))) as SuggestResponseBody;

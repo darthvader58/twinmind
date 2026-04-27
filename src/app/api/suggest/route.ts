@@ -16,6 +16,7 @@ const SuggestRequestSchema = z.object({
   suggestPrompt: z.string().min(1),
   contextChars: z.number().int().nonnegative(),
   topicGraph: z.array(TopicGraphNodeWireSchema).max(60).default([]),
+  annotatedTranscript: z.string().optional(),
 });
 
 const STATUS_BY_KIND: Record<TwinMindError['kind'], number> = {
@@ -80,6 +81,9 @@ export async function POST(req: Request): Promise<Response> {
     previousPreviews: parsed.data.previousPreviews,
     settings: { suggestPrompt: parsed.data.suggestPrompt },
     topicGraph: parsed.data.topicGraph,
+    ...(parsed.data.annotatedTranscript !== undefined
+      ? { annotatedTranscript: parsed.data.annotatedTranscript }
+      : {}),
   });
 
   const t0 = Date.now();

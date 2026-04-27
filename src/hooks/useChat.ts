@@ -112,6 +112,11 @@ export function useChat(): UseChatApi {
       return;
     }
     session.pushUserMessage(s.preview, { id: s.id, preview: s.preview });
+    // Click-to-cover: any KG node whose label appears in the preview is now
+    // explored, and the preview itself enters the manual-previews list so the
+    // next suggest batch never re-pitches the same theme.
+    session.markGraphNodesCovered([s.preview]);
+    session.appendPreviousPreview(s.preview);
     const aid = session.startAssistantMessage(s.id);
     const transcript = buildFullTranscript();
     const history = snapshotHistory({ dropTrailingUser: false });
