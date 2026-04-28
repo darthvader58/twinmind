@@ -12,3 +12,5 @@ coverage/
 .env.*.local
 .env.local
 *.tsbuildinfo
+*.md
+!README.md
