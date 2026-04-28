@@ -245,19 +245,68 @@ describe('buildSuggestMessages', () => {
     );
   });
 
+  it('forbids the answer type in the closing reminder when unansweredQuestions is empty/absent', () => {
+    const a = buildSuggestMessages({
+      transcriptWindow: 'x',
+      previousPreviews: [],
+      settings,
+    });
+    const b = buildSuggestMessages({
+      transcriptWindow: 'x',
+      previousPreviews: [],
+      settings,
+      unansweredQuestions: [],
+    });
+    for (const msgs of [a, b]) {
+      const user = msgs[1]?.content ?? '';
+      expect(user).toContain('No card may use the `answer` type');
+      // The OPEN_QUESTIONS *block* must be absent, but the closing forbid clause
+      // legitimately names the variable, so we check the block header specifically.
+      expect(user).not.toContain('OPEN_QUESTIONS (live unanswered questions');
+      expect(user).not.toContain('lead one card with that answer');
+    }
+  });
+
+  it('renders OPEN_QUESTIONS block + unlock-answer clause when unansweredQuestions is non-empty', () => {
+    const msgs = buildSuggestMessages({
+      transcriptWindow: 'we are scoping the integration',
+      previousPreviews: [],
+      settings,
+      unansweredQuestions: ["What's the lead time?", 'How is auth handled?'],
+    });
+    const user = msgs[1]?.content ?? '';
+    expect(user).toContain('OPEN_QUESTIONS');
+    expect(user).toContain("- What's the lead time?");
+    expect(user).toContain('- How is auth handled?');
+    expect(user).toContain(
+      'If a question in OPEN_QUESTIONS is fresh and you have a useful answer, lead one card with that answer.',
+    );
+    expect(user).not.toContain('No card may use the `answer` type');
+  });
+
 });
 
 describe('SuggestionTypeSchema (single source of truth for the type enum)', () => {
-  it('accepts every current SuggestionType including tangent', () => {
+  it('accepts every current SuggestionType in the v2 taxonomy', () => {
+    for (const t of [
+      'summary',
+      'follow_up_question',
+      'tangential_discussion',
+      'answer',
+    ] as const) {
+      expect(SuggestionTypeSchema.safeParse(t).success).toBe(true);
+    }
+  });
+
+  it('rejects every dropped v1 type literal', () => {
     for (const t of [
       'question_to_ask',
       'talking_point',
-      'answer',
       'fact_check',
       'clarifying_info',
       'tangent',
     ] as const) {
-      expect(SuggestionTypeSchema.safeParse(t).success).toBe(true);
+      expect(SuggestionTypeSchema.safeParse(t).success).toBe(false);
     }
   });
 
@@ -283,8 +332,8 @@ describe('buildExpandMessages', () => {
   it('system equals settings.expandPrompt; user has SUGGESTION_TYPE, SUGGESTION_PREVIEW, and triple-quoted transcript', () => {
     const suggestion: Suggestion = {
       id: 's_1',
-      type: 'fact_check',
-      preview: 'Fact-check: claim — verdict',
+      type: 'summary',
+      preview: 'Decision: ship v2 next sprint — verified pricing claim is accurate',
     };
     const msgs = buildExpandMessages({
       suggestion,
@@ -294,8 +343,10 @@ describe('buildExpandMessages', () => {
     expect(msgs).toHaveLength(2);
     expect(msgs[0]).toEqual({ role: 'system', content: 'SYSTEM_EXPAND' });
     const user = msgs[1]?.content ?? '';
-    expect(user).toContain('SUGGESTION_TYPE: fact_check');
-    expect(user).toContain('SUGGESTION_PREVIEW: Fact-check: claim — verdict');
+    expect(user).toContain('SUGGESTION_TYPE: summary');
+    expect(user).toContain(
+      'SUGGESTION_PREVIEW: Decision: ship v2 next sprint — verified pricing claim is accurate',
+    );
     expect(user).toContain('TRANSCRIPT:\n"""\nSome transcript content.\n"""');
   });
 });
@@ -339,7 +390,11 @@ describe('default prompts contain key phrases verbatim', () => {
     expect(DEFAULT_SUGGEST_PROMPT.includes('PREVIEW RULES')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('HOW TO THINK')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('ANTI-REPETITION')).toBe(true);
-    expect(DEFAULT_SUGGEST_PROMPT.includes('• tangent')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('• summary')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('• follow_up_question')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('• tangential_discussion')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('• answer')).toBe(true);
+    expect(DEFAULT_SUGGEST_PROMPT.includes('OPEN_QUESTIONS')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes('KNOWLEDGE_GRAPH')).toBe(true);
     expect(DEFAULT_SUGGEST_PROMPT.includes("user's own next thought")).toBe(true);
   });
@@ -352,10 +407,13 @@ describe('default prompts contain key phrases verbatim', () => {
     expect(DEFAULT_EXTRACT_PROMPT.includes('tangent_seeds')).toBe(true);
   });
 
-  it('DEFAULT_EXPAND_PROMPT is non-empty and covers the tangent type', () => {
+  it('DEFAULT_EXPAND_PROMPT is non-empty and covers each v2 type', () => {
     expect(DEFAULT_EXPAND_PROMPT.length).toBeGreaterThan(0);
     expect(DEFAULT_EXPAND_PROMPT.includes('LENGTH: 90–180 words')).toBe(true);
-    expect(DEFAULT_EXPAND_PROMPT.includes('tangent')).toBe(true);
+    expect(DEFAULT_EXPAND_PROMPT.includes('summary')).toBe(true);
+    expect(DEFAULT_EXPAND_PROMPT.includes('follow_up_question')).toBe(true);
+    expect(DEFAULT_EXPAND_PROMPT.includes('tangential_discussion')).toBe(true);
+    expect(DEFAULT_EXPAND_PROMPT.includes('answer')).toBe(true);
   });
 
   it('DEFAULT_CHAT_PROMPT is non-empty and has the lead-with-the-answer marker', () => {

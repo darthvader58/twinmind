@@ -76,6 +76,18 @@ export async function POST(req: Request): Promise<Response> {
     return errorResponse(makeError('unknown', 'Failed to initialize Groq client.'));
   }
 
+  const RECENCY_MS = 90_000;
+  const now = Date.now();
+  const unansweredQuestions = parsed.data.topicGraph
+    .filter(
+      (n) =>
+        n.kind === 'open_question' &&
+        !n.covered &&
+        now - n.lastMentionedAtMs <= RECENCY_MS,
+    )
+    .slice(-3)
+    .map((n) => n.display);
+
   const messages = buildSuggestMessages({
     transcriptWindow: parsed.data.transcriptWindow,
     previousPreviews: parsed.data.previousPreviews,
@@ -84,6 +96,7 @@ export async function POST(req: Request): Promise<Response> {
     ...(parsed.data.annotatedTranscript !== undefined
       ? { annotatedTranscript: parsed.data.annotatedTranscript }
       : {}),
+    ...(unansweredQuestions.length > 0 ? { unansweredQuestions } : {}),
   });
 
   const t0 = Date.now();

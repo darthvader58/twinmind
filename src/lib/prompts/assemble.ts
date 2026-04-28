@@ -79,10 +79,16 @@ export function buildSuggestMessages(args: {
    *  my next thought" since suggestions for things *I* just said are different
    *  from suggestions for things *they* just said. */
   annotatedTranscript?: string;
+  /** Live unanswered questions (display strings) extracted from the topicGraph
+   *  by the route. When non-empty, the prompt unlocks the `answer` suggestion
+   *  type and renders an OPEN_QUESTIONS block; when empty, the closing reminder
+   *  forbids `answer`. The route, not the assembler, owns the recency window. */
+  unansweredQuestions?: string[];
 }): ChatMsg[] {
   const { transcriptWindow, previousPreviews, settings } = args;
   const topicGraph = args.topicGraph ?? [];
   const annotated = args.annotatedTranscript ?? '';
+  const unansweredQuestions = args.unansweredQuestions ?? [];
   const previewsBlock =
     previousPreviews.length === 0
       ? 'PREVIOUS_PREVIEWS (avoid repeating, including semantic duplicates): (none yet)'
@@ -92,6 +98,11 @@ export function buildSuggestMessages(args: {
     topicGraph.length === 0
       ? 'KNOWLEDGE_GRAPH (topics raised so far in the call): (empty — no nodes yet)'
       : `KNOWLEDGE_GRAPH (topics raised so far in the call; "covered" means already explored or already suggested):\n${topicGraph.map(renderGraphLine).join('\n')}`;
+
+  const allowAnswer = unansweredQuestions.length > 0;
+  const openQuestionsBlock = allowAnswer
+    ? `OPEN_QUESTIONS (live unanswered questions in the room — an \`answer\` card here would be high-value):\n${unansweredQuestions.map((q) => `- ${q}`).join('\n')}`
+    : '';
 
   const useAnnotated = annotated.trim() !== '';
   const plainEmpty = transcriptWindow.trim() === '';
@@ -105,7 +116,14 @@ export function buildSuggestMessages(args: {
     transcriptBlock = `RECENT_TRANSCRIPT (last ~${transcriptWindow.length} chars):\n"""\n${transcriptWindow}\n"""`;
   }
 
-  const userContent = `${previewsBlock}\n\n${graphBlock}\n\n${transcriptBlock}\n\nNow produce exactly 3 suggestions. Pick the 3 things that would feel most like the user's own next thought. Vary the types. Don't repeat anything in PREVIOUS_PREVIEWS.`;
+  const closingReminder = allowAnswer
+    ? "Now produce exactly 3 suggestions. Pick the 3 things that would feel most like the user's own next thought. Vary the types. Don't repeat anything in PREVIOUS_PREVIEWS. If a question in OPEN_QUESTIONS is fresh and you have a useful answer, lead one card with that answer."
+    : "Now produce exactly 3 suggestions. Pick the 3 things that would feel most like the user's own next thought. Vary the types. Don't repeat anything in PREVIOUS_PREVIEWS. No card may use the `answer` type — OPEN_QUESTIONS is empty.";
+
+  const sections = [previewsBlock, graphBlock];
+  if (openQuestionsBlock) sections.push(openQuestionsBlock);
+  sections.push(transcriptBlock, closingReminder);
+  const userContent = sections.join('\n\n');
 
   return [
     { role: 'system', content: settings.suggestPrompt },

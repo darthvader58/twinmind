@@ -32,9 +32,9 @@ describe('serializeSession', () => {
         id: 'b1',
         generatedAt: t1,
         suggestions: [
-          { id: 's1', type: 'question_to_ask', preview: 'Ask about pricing' },
-          { id: 's2', type: 'talking_point', preview: 'Mention Q4 growth' },
-          { id: 's3', type: 'fact_check', preview: 'Fact-check: 30% — close to 28%' },
+          { id: 's1', type: 'follow_up_question', preview: 'What does the rollout timeline look like?' },
+          { id: 's2', type: 'summary', preview: 'Decision: pilot in Q4; verified ARR claim is accurate' },
+          { id: 's3', type: 'tangential_discussion', preview: 'Next: discuss SOC2 — because they just mentioned compliance' },
         ],
       },
     ];

@@ -17,7 +17,7 @@ const makeChunk = (id: string, startedAtMs: number, text = 'hi'): TranscriptChun
 
 const makeSuggestion = (id: string, preview: string): Suggestion => ({
   id,
-  type: 'talking_point',
+  type: 'summary',
   preview,
 });
 

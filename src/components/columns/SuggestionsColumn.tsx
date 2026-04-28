@@ -15,11 +15,10 @@ interface Props {
 }
 
 const TYPE_ORDER: SuggestionType[] = [
-  'question_to_ask',
-  'talking_point',
+  'summary',
+  'follow_up_question',
+  'tangential_discussion',
   'answer',
-  'fact_check',
-  'clarifying_info',
 ];
 
 export const SuggestionsColumn = ({ onReload, onSuggestionClick }: Props) => {

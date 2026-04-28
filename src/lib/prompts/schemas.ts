@@ -1,12 +1,10 @@
 import { z } from 'zod';
 
 export const SuggestionTypeSchema = z.enum([
-  'question_to_ask',
-  'talking_point',
+  'summary',
+  'follow_up_question',
+  'tangential_discussion',
   'answer',
-  'fact_check',
-  'clarifying_info',
-  'tangent',
 ]);
 
 export const SuggestionInputSchema = z.object({

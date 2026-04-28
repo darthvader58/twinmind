@@ -1,12 +1,10 @@
 export type RecordingState = 'idle' | 'recording' | 'starting' | 'stopping' | 'error';
 
 export type SuggestionType =
-  | 'question_to_ask'
-  | 'talking_point'
-  | 'answer'
-  | 'fact_check'
-  | 'clarifying_info'
-  | 'tangent';
+  | 'summary'
+  | 'follow_up_question'
+  | 'tangential_discussion'
+  | 'answer';
 
 export type TopicNodeKind = 'entity' | 'claim' | 'open_question' | 'tangent_seed';
 

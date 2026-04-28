@@ -2,8 +2,6 @@ import type { ReactNode } from 'react';
 
 import { clsx } from 'clsx';
 
-import type { SuggestionType } from '@/lib/types';
-
 type Variant = 'idle' | 'recording' | 'success' | 'info' | 'warn' | 'mute';
 
 interface PillProps {
@@ -38,68 +36,3 @@ export const Pill = ({ children, variant = 'idle', className }: PillProps) => (
     {children}
   </span>
 );
-
-export const TYPE_COLOR: Record<
-  SuggestionType,
-  { ring: string; bg: string; text: string; label: string; border: string }
-> = {
-  question_to_ask: {
-    ring: 'ring-[var(--accent-blue)]/40',
-    bg: 'bg-[var(--accent-blue)]/10',
-    text: 'text-[var(--accent-blue)]',
-    border: 'border-[var(--accent-blue)]/40',
-    label: 'Question',
-  },
-  talking_point: {
-    ring: 'ring-[var(--accent-violet)]/40',
-    bg: 'bg-[var(--accent-violet)]/10',
-    text: 'text-[var(--accent-violet)]',
-    border: 'border-[var(--accent-violet)]/40',
-    label: 'Talking point',
-  },
-  answer: {
-    ring: 'ring-[var(--accent-green)]/40',
-    bg: 'bg-[var(--accent-green)]/10',
-    text: 'text-[var(--accent-green)]',
-    border: 'border-[var(--accent-green)]/40',
-    label: 'Answer',
-  },
-  fact_check: {
-    ring: 'ring-[var(--accent-amber)]/40',
-    bg: 'bg-[var(--accent-amber)]/10',
-    text: 'text-[var(--accent-amber)]',
-    border: 'border-[var(--accent-amber)]/40',
-    label: 'Fact-check',
-  },
-  clarifying_info: {
-    ring: 'ring-[var(--accent-cyan)]/40',
-    bg: 'bg-[var(--accent-cyan)]/10',
-    text: 'text-[var(--accent-cyan)]',
-    border: 'border-[var(--accent-cyan)]/40',
-    label: 'Clarify',
-  },
-  tangent: {
-    ring: 'ring-[var(--accent-pink)]/40',
-    bg: 'bg-[var(--accent-pink)]/10',
-    text: 'text-[var(--accent-pink)]',
-    border: 'border-[var(--accent-pink)]/40',
-    label: 'Tangent',
-  },
-};
-
-export const TypePill = ({ type, className }: { type: SuggestionType; className?: string }) => {
-  const tone = TYPE_COLOR[type];
-  return (
-    <span
-      className={clsx(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]',
-        tone.bg,
-        tone.text,
-        tone.border,
-        className,
-      )}
-    >
-      {tone.label}
-    </span>
-  );
-};

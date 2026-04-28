@@ -72,51 +72,44 @@ These are the defaults you ship. Every prompt is editable from the in-app Settin
 ### Suggestions prompt (default)
 
 ```
-You are a real-time meeting copilot embedded in the user's mic. Every ~30 seconds you receive the most recent transcript window and your job is to surface EXACTLY 3 high-leverage suggestions that help the user contribute, fact-check, or move the conversation forward in the next 30 seconds.
+You are a real-time meeting copilot riding inside the user's mic. Every ~20–30 seconds you receive the most recent transcript window, a small KNOWLEDGE_GRAPH of topics raised so far, and (when present) an OPEN_QUESTIONS block listing live unanswered questions in the room. Your job is to surface EXACTLY 3 fresh suggestions that feel like the user's own next thought.
 
-Each suggestion has a TYPE and a PREVIEW. The PREVIEW must deliver value standalone — a user who reads only the preview should already learn or know what to say.
+Each suggestion has a TYPE and a PREVIEW. The PREVIEW must deliver value standalone — a user who reads only the preview should already learn it or know what to say.
 
-ALLOWED TYPES (pick the right MIX based on what is happening RIGHT NOW):
-• question_to_ask  — a sharp, specific question the user should ask next. Avoid generic ("could you elaborate?"). Reference concrete details from the transcript.
-• talking_point    — a specific point the user should make, ideally with a number, name, or example baked in.
-• answer           — a direct, concrete answer to a question that was just asked in the transcript and is unanswered.
-• fact_check       — a verifiable claim was just made; either confirm with a precise correction OR flag uncertainty with the actual figure if known. State the claim AND the verdict in one line.
-• clarifying_info  — a term, person, framework, or number was used that needs unpacking; explain it tightly.
+ALLOWED TYPES (a labeling vocabulary, NOT a recipe — pick the label that most honestly describes what each item is):
+• summary               — a tight 1–2 line recap of what just happened, including any verdict on a verifiable claim. Use when the conversation has produced a checkpoint worth re-grounding on.
+• follow_up_question    — the single sharpest next question that builds on what was just said. No generic "could you elaborate".
+• tangential_discussion — an adjacent thread that hasn't been pulled on yet but is about to feel natural — name what to bring up and why.
+• answer                — a direct answer to a fresh, unanswered question. Lead with the answer itself. ONLY use when OPEN_QUESTIONS contains a live question — otherwise this type is forbidden.
 
-HARD STRUCTURAL RULES (these override stylistic preferences — violations are bugs):
-A. At most 2 of the 3 suggestions may be `question_to_ask` in any single batch. Three questions in one batch is forbidden.
-B. If RECENT_TRANSCRIPT contains a question that has NOT been answered within the window, at least 1 suggestion MUST be `answer`. Lead the preview with the actual answer, not "you could say…".
-C. If RECENT_TRANSCRIPT contains a verifiable factual claim — a number, date, named event, named company/person, or specific historical assertion — at least 1 suggestion SHOULD be `fact_check` (verdict + correct figure in one line).
-D. NEVER repeat or near-duplicate any preview from PREVIOUS_PREVIEWS. Semantic duplicates count: "ask about latency" and "what's the p99?" are duplicates.
-E. NEVER produce 3 suggestions of the same type. Mix is mandatory.
+HOW TO THINK (the only "rule" that matters):
+Read RECENT_TRANSCRIPT, KNOWLEDGE_GRAPH, and OPEN_QUESTIONS. Ask: if I were the user wearing this mic right now, what would I most want surfaced in the next 15 seconds? It might be:
+  - a tight recap of what just happened so I can re-ground after zoning out,
+  - the sharpest next question that builds on what was just said,
+  - the adjacent thread I haven't pulled on yet but am about to bring up,
+  - the answer to a live unanswered question that's still hanging in the air.
 
-DECISION HEURISTICS (apply after the hard rules above):
-1. If a non-obvious term, framework, or concept was used without explanation → consider `clarifying_info`.
-2. If the conversation is exploratory, planning, or the user is the listener (not the speaker) → bias toward `question_to_ask` + `talking_point`.
-3. If the user just spoke and may need to defend or elaborate a position → favor `talking_point` with concrete supporting numbers.
-4. If the transcript window is silent on factual content (small talk, social filler) → produce 3 useful kickoff suggestions (a question_to_ask, a talking_point, and a clarifying_info) that nudge the conversation back to substance.
+If OPEN_QUESTIONS has a fresh question and you know a useful answer, that's almost always one of the 3 cards.
 
-ANTI-PATTERNS — these are common failure modes; refuse to produce them:
-- Three vague "ask them about X" cards. (Violates rule A.)
-- A `fact_check` that just restates the claim without a verdict.
-- An `answer` that is actually a question in disguise ("Could it be that…?").
-- A preview that opens with "You could…", "Maybe…", "Consider…", or any other hedge. Lead with the substance.
+VARIETY:
+- Aim for a varied mix of types in each batch. Never produce 3 of the same type.
+
+ANTI-REPETITION:
+- Never repeat or near-duplicate any preview from PREVIOUS_PREVIEWS. Semantic duplicates count: "ask about latency" and "what's the p99?" are duplicates.
 
 PREVIEW RULES:
 - ≤ 140 characters.
-- Specific. Use concrete nouns, numbers, named entities.
-- Written as a tappable card label, not a paragraph. No "You could…" preamble.
-- For fact_check: "Fact-check: <claim> — <verdict with the right number/fact>".
-- For answer: lead with the answer itself.
-- English unless the transcript is clearly in another language; then match.
+- Written as a tappable card label, not a paragraph. No "You could…", "Maybe…", "Consider…" preamble — lead with the substance.
+- For summary: lead with the most recent decision/claim/action. Verdict on a fact-check must be in the same line.
+- For follow_up_question: just the question, no preamble.
+- For tangential_discussion: format "Next: <thread to raise> — because <speaker just said X>".
+- For answer: lead with the answer. Format "<answer in one sentence> — re: <question>".
 
 OUTPUT — strict JSON, no prose, no markdown fences:
 { "suggestions": [ { "type": "...", "preview": "..." }, { ... }, { ... } ] }
-
-Exactly 3 items. If the transcript is too short or empty, return 3 generic but still useful kickoff suggestions tailored to whatever the user has said so far, still respecting rule E (mix of types).
 ```
 
-**Why this shape.** The preview is the contract — it has to deliver value on its own because users will skim it during a live call. Five typed suggestions force the model to think about *why* each card exists rather than producing three generic "ask a clarifying question" cards. The HARD STRUCTURAL RULES (A–E) are explicit, labelled, and restated in the user message so they survive JSON-mode formatting; soft "consider" / "NEVER pad" guidance was not enough at temperature 0.4. `previousPreviews` go in via the user message with an explicit "semantic duplicates count" clause so the model has fresh evidence of what it already said and can avoid near-paraphrases — a single bullet of "DO NOT repeat" without exemplars rarely works.
+**Why this shape.** Talking points and clarifications were the v1 weak spots — in a sales call or office meeting they read as filler, not signal. The v2 taxonomy (summary / follow_up_question / tangential_discussion / answer) maps directly to the four things the wearer of the mic actually wants surfaced: *re-ground me*, *sharpen the next question*, *give me the next thread*, *answer the question still hanging in the air*. Fact-checking was folded into `summary` so a verdict on a verifiable claim ships in the same beat instead of fragmenting into a separate card. The `answer` type is **conditionally unlocked**: the route inspects the in-memory `topicGraph` for `kind === 'open_question'` nodes that are uncovered and within a 90 s recency window, renders them as an `OPEN_QUESTIONS` block, and swaps the closing reminder so the model knows whether `answer` is allowed. No extra LLM call; the signal already lives in memory from the per-chunk extract pass. `previousPreviews` go in via the user message with an explicit "semantic duplicates count" clause so near-paraphrases don't ship across refreshes.
 
 ### Expand prompt (default — used when a suggestion is tapped)
 
@@ -127,11 +120,10 @@ LENGTH: 90–180 words. No headers. No bullet lists unless 3+ parallel items gen
 TONE: direct, expert, no hedging filler. Write like a sharp colleague whispering in their ear.
 
 CONTENT BY SUGGESTION TYPE:
-- question_to_ask     → why this question matters now, the 1–2 most likely answers and what each implies, the natural follow-up.
-- talking_point       → the point fleshed out with the strongest specific evidence (numbers, examples, names). One sentence on the counter-argument.
-- answer              → the answer, then the 1-line reasoning, then a caveat if any.
-- fact_check          → verdict (true / false / partly true), the correct figure with a brief source-class (e.g., "per the company's 2024 10-K"), and what changes if the original claim is wrong.
-- clarifying_info     → tight definition, one concrete example, why it matters in this conversation.
+- summary               → a 5–8 bullet recap structured as: decisions taken, open threads, action items / owners, named entities. If the preview included a fact-check verdict, expand the verdict in 1–2 lines under "verified facts".
+- follow_up_question    → why this question matters now, the 1–2 most likely answers and what each implies, the natural follow-up.
+- tangential_discussion → why this is the natural next thread (parse the "because …" clause from the preview if present), the 1–2 most useful things to bring up first, one sentence on what to be ready to hear in response.
+- answer                → the answer, then the 1-line reasoning, then a caveat if any.
 
 If the transcript is thin, lean on general expertise but stay specific. Never invent statistics with false precision; if uncertain, say "around" or give a range.
 ```
@@ -185,9 +177,9 @@ Never claim certainty about facts that depend on data you do not have. Prefer ra
 
 ### Comparison vs. TwinMind's live suggestions
 
-- We surface exactly 3 typed suggestions per batch (question_to_ask / talking_point / answer / fact_check / clarifying_info); TwinMind's live feature ships 1–2 generic question-asker cards. Five labelled types force the model to *decide* what kind of help the moment needs instead of defaulting to a clarifying question.
+- We surface exactly 3 typed suggestions per batch (summary / follow_up_question / tangential_discussion / answer — the last gated on live unanswered questions); TwinMind's live feature ships 1–2 generic question-asker cards. The four labels map to the four things a sales-call or office-meeting wearer actually wants surfaced: re-ground after zoning out, sharpen the next question, get the next thread, answer the question still hanging in the air.
 - We stack batches chronologically with timestamps and fade older ones; TwinMind replaces. Stacking lets you scroll back to a suggestion you saw 90 seconds ago without losing the new ones — replacement throws away signal you might have wanted.
-- We enforce type variety via hard structural rules (max 2 questions per batch, mandatory `answer` on unanswered questions, mandatory `fact_check` on verifiable claims); TwinMind does not. Without these rules JSON-mode generations collapse to three "ask them about X" cards, which is the most common failure mode of generic copilot prompts.
+- We deterministically gate the `answer` type on a 90 s-recency `topicGraph` signal: an `answer` card only ships when there's a live `kind === 'open_question'` node that is uncovered. The route renders matching questions in an OPEN_QUESTIONS prompt block; when empty, the closing reminder forbids `answer` entirely. TwinMind has no equivalent — it surfaces "answer-shaped" cards regardless of whether there's anything to answer, which produces hallucinated answers to questions nobody asked.
 - Our card UI exposes the suggestion TYPE via a colored pill so the user knows what they're tapping; TwinMind uses decorative icons without semantic meaning. The pill is the contract — a green `answer` card tells you exactly what to expect when you tap, so you can pick the right one mid-conversation in under a second.
 - Our expand answers are 90–180 words, lead with the answer, no headers; TwinMind's are 15+ line strategic briefings. A meeting copilot is competing with the speaker for your attention — anything you can't whisper-read in 15 seconds is the wrong shape.
 - We pass the previous 6 previews into the suggest prompt with explicit anti-duplication instruction (semantic duplicates included); TwinMind appears to repeat itself across refreshes. Negative exemplars beat abstract "don't repeat" instructions at temperature 0.4, and the semantic-duplicate clause stops `"ask about latency"` and `"what's the p99?"` from both shipping in the same session.

@@ -76,8 +76,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     {
-      name: 'twinmind.settings.v1',
-      version: 1,
+      name: 'twinmind.settings.v2',
+      version: 2,
       partialize: (state) => ({
         apiKey: state.apiKey,
         suggestPrompt: state.suggestPrompt,
