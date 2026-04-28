@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { TwinMindError } from '@/lib/types';
 
 import { pickMime, type MimeError } from './mime';
-import { shouldRotate } from './recorder';
+import { isLocallySilentChunk, shouldRotate } from './recorder';
 
 interface RecorderStub {
   isTypeSupported: (m: string) => boolean;
@@ -117,6 +117,38 @@ describe('shouldRotate', () => {
   it('does not rotate when speech is happening this exact frame', () => {
     expect(
       shouldRotate({ ...base, chunkAgeMs: 8_000, lastSpeechAtMs: 8_000, nowMs: 8_000 }),
+    ).toBe(false);
+  });
+});
+
+describe('isLocallySilentChunk', () => {
+  it('returns true when no frame ever crossed the speech threshold', () => {
+    expect(
+      isLocallySilentChunk({ speechFrames: 0, totalFrames: 600, peakRms: 0.008 }),
+    ).toBe(true);
+  });
+
+  it('returns true on essentially-silent room tone (sub-5% speech ratio + low peak)', () => {
+    expect(
+      isLocallySilentChunk({ speechFrames: 4, totalFrames: 600, peakRms: 0.04 }),
+    ).toBe(true);
+  });
+
+  it('returns false when the analyser never ran (preserve recall via Whisper fallback)', () => {
+    expect(
+      isLocallySilentChunk({ speechFrames: 0, totalFrames: 0, peakRms: 0 }),
+    ).toBe(false);
+  });
+
+  it('returns false on real-speech telemetry', () => {
+    expect(
+      isLocallySilentChunk({ speechFrames: 180, totalFrames: 600, peakRms: 0.18 }),
+    ).toBe(false);
+  });
+
+  it('returns false when peak crosses the loudness floor even with low ratio', () => {
+    expect(
+      isLocallySilentChunk({ speechFrames: 4, totalFrames: 600, peakRms: 0.12 }),
     ).toBe(false);
   });
 });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { isNoApiKeyError, makeGroq } from '@/lib/groq/client';
 import { toSafeError } from '@/lib/groq/errors';
 import { extractNodes } from '@/lib/groq/extract';
+import { isWhisperHallucination } from '@/lib/groq/transcribe';
 import { buildExtractMessages } from '@/lib/prompts/assemble';
 import { makeError, type TwinMindError } from '@/lib/types';
 
@@ -60,6 +61,16 @@ export async function POST(req: Request): Promise<Response> {
         `Request body failed validation: ${parsed.error.message}`,
       ),
     );
+  }
+
+  if (isWhisperHallucination(parsed.data.chunkText)) {
+    return Response.json({
+      entities: [],
+      claims: [],
+      open_questions: [],
+      tangent_seeds: [],
+      latencyMs: 0,
+    });
   }
 
   let client;

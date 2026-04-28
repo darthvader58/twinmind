@@ -84,12 +84,11 @@ const SegmentsSchema = z.array(SegmentSchema);
 /**
  * Whisper's verbose_json segments expose per-segment `no_speech_prob` and
  * `avg_logprob`. These are the model's own silence/confidence signals and
- * work in every language, unlike the regex fallback. Pure.
+ * work in every language. Bias is toward silence — see CLAUDE.md framing on
+ * Whisper hallucinations: a missed borderline word is recoverable, a
+ * confidently-rendered hallucinated sentence is not. Pure.
  */
-export function isLikelySilenceFromSegments(
-  segments: WhisperSegment[],
-  text: string,
-): boolean {
+export function isLikelySilenceFromSegments(segments: WhisperSegment[]): boolean {
   if (segments.length === 0) return false;
   let total = 0;
   for (const s of segments) {
@@ -105,9 +104,25 @@ export function isLikelySilenceFromSegments(
   }
   weightedNoSpeech /= total;
   weightedAvgLogprob /= total;
-  if (weightedNoSpeech >= 0.6) return true;
-  if (weightedAvgLogprob <= -1.0 && text.trim().length <= 30) return true;
+  if (weightedNoSpeech >= 0.5) return true;
+  if (weightedAvgLogprob <= -0.7) return true;
   return false;
+}
+
+/**
+ * Joins a sequence of chunk texts into a single transcript context, dropping
+ * any chunk whose text matches a known Whisper hallucination pattern. Used at
+ * every LLM context-assembly site (suggest / extract / chat) so a hallucination
+ * that slipped past the per-chunk gates still cannot poison downstream prompts.
+ */
+export function joinTranscriptForContext(
+  chunks: { text: string }[],
+  separator = ' ',
+): string {
+  return chunks
+    .map((c) => c.text)
+    .filter((t) => t.length > 0 && !isWhisperHallucination(t))
+    .join(separator);
 }
 
 /**
@@ -141,7 +156,7 @@ export async function transcribeChunk(
       };
     }
     const isSilent =
-      isLikelySilenceFromSegments(segments, text) || isWhisperHallucination(text);
+      isLikelySilenceFromSegments(segments) || isWhisperHallucination(text);
     const cleaned = isSilent ? '' : text;
     return {
       ok: true,

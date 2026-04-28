@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 
+import { joinTranscriptForContext } from '@/lib/groq/transcribe';
 import { readSSE } from '@/lib/sse/client';
 import { useSessionStore } from '@/lib/store/session';
 import { useSettingsStore } from '@/lib/store/settings';
@@ -25,11 +26,7 @@ export interface UseChatApi {
 }
 
 function buildFullTranscript(): string {
-  return useSessionStore
-    .getState()
-    .chunks.filter((c) => c.text.length > 0)
-    .map((c) => c.text)
-    .join(' ');
+  return joinTranscriptForContext(useSessionStore.getState().chunks);
 }
 
 /**

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
+import { isWhisperHallucination, joinTranscriptForContext } from '@/lib/groq/transcribe';
 import { newId } from '@/lib/ids';
 import { sliceTail } from '@/lib/prompts/assemble';
 import { useSessionStore } from '@/lib/store/session';
@@ -41,7 +42,11 @@ export function buildAnnotatedTranscript(
   maxChars: number,
 ): string {
   const speaking = chunks.filter(
-    (c) => !c.error && c.text.trim() !== '' && c.speakerRole !== undefined,
+    (c) =>
+      !c.error &&
+      c.text.trim() !== '' &&
+      c.speakerRole !== undefined &&
+      !isWhisperHallucination(c.text),
   );
   if (speaking.length === 0) return '';
   const allUnknown = speaking.every((c) => c.speakerRole === 'unknown');
@@ -111,10 +116,7 @@ export function useSuggestionLoop(): UseSuggestionLoopApi {
     session.setSuggestionsLoading(true);
     session.setSuggestionsError(undefined);
 
-    const fullTranscript = session.chunks
-      .filter((c) => c.text.length > 0)
-      .map((c) => c.text)
-      .join(' ');
+    const fullTranscript = joinTranscriptForContext(session.chunks);
     const transcriptWindow = sliceTail(fullTranscript, settings.suggestContextChars);
     const annotatedTranscript = buildAnnotatedTranscript(
       session.chunks,

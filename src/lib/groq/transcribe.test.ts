@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isLikelySilenceFromSegments,
   isWhisperHallucination,
+  joinTranscriptForContext,
   type WhisperSegment,
 } from './transcribe';
 
@@ -69,46 +70,31 @@ describe('isWhisperHallucination', () => {
 
 describe('isLikelySilenceFromSegments', () => {
   it('returns false when there are no segments', () => {
-    expect(isLikelySilenceFromSegments([], 'anything')).toBe(false);
-    expect(isLikelySilenceFromSegments([], '')).toBe(false);
+    expect(isLikelySilenceFromSegments([])).toBe(false);
   });
 
-  it('flags high no_speech_prob even with short text', () => {
+  it('flags weighted no_speech_prob at the new 0.5 threshold', () => {
     const segments: WhisperSegment[] = [
-      { no_speech_prob: 0.8, avg_logprob: -0.3, start: 0, end: 5 },
+      { no_speech_prob: 0.55, avg_logprob: -0.3, start: 0, end: 5 },
     ];
-    expect(isLikelySilenceFromSegments(segments, 'Thank you')).toBe(true);
+    expect(isLikelySilenceFromSegments(segments)).toBe(true);
   });
 
-  it('does not flag moderate no_speech_prob with reasonable text', () => {
+  it('does not flag moderate no_speech_prob below 0.5', () => {
     const segments: WhisperSegment[] = [
       { no_speech_prob: 0.2, avg_logprob: -0.3, start: 0, end: 4 },
       { no_speech_prob: 0.4, avg_logprob: -0.3, start: 4, end: 8 },
     ];
-    expect(
-      isLikelySilenceFromSegments(segments, 'This is a coherent statement.'),
-    ).toBe(false);
+    expect(isLikelySilenceFromSegments(segments)).toBe(false);
   });
 
-  it('flags low avg_logprob when text is short', () => {
+  it('flags low avg_logprob length-agnostically — long, fluent hallucinations are the dangerous regime', () => {
     const segments: WhisperSegment[] = [
-      { no_speech_prob: 0.2, avg_logprob: -1.2, start: 0, end: 3 },
-      { no_speech_prob: 0.2, avg_logprob: -1.2, start: 3, end: 6 },
+      { no_speech_prob: 0.2, avg_logprob: -0.8, start: 0, end: 3 },
+      { no_speech_prob: 0.2, avg_logprob: -0.8, start: 3, end: 6 },
     ];
-    expect(isLikelySilenceFromSegments(segments, 'you you you')).toBe(true);
-  });
-
-  it('does not flag low avg_logprob when text is long', () => {
-    const segments: WhisperSegment[] = [
-      { no_speech_prob: 0.2, avg_logprob: -1.2, start: 0, end: 3 },
-      { no_speech_prob: 0.2, avg_logprob: -1.2, start: 3, end: 6 },
-    ];
-    expect(
-      isLikelySilenceFromSegments(
-        segments,
-        'This is a long substantive sentence that goes on for a while.',
-      ),
-    ).toBe(false);
+    // Was previously NOT flagged because text length > 30; now it is.
+    expect(isLikelySilenceFromSegments(segments)).toBe(true);
   });
 
   it('does not flag long substantive text with high confidence', () => {
@@ -116,11 +102,52 @@ describe('isLikelySilenceFromSegments', () => {
       { no_speech_prob: 0.05, avg_logprob: -0.2, start: 0, end: 4 },
       { no_speech_prob: 0.05, avg_logprob: -0.2, start: 4, end: 8 },
     ];
-    expect(
-      isLikelySilenceFromSegments(
-        segments,
-        'We need to align on the launch date and the rollback plan before Friday.',
-      ),
-    ).toBe(false);
+    expect(isLikelySilenceFromSegments(segments)).toBe(false);
+  });
+
+  it('keeps short, confident speech (single word with high confidence does not trip)', () => {
+    const segments: WhisperSegment[] = [
+      { no_speech_prob: 0.1, avg_logprob: -0.4, start: 0, end: 1 },
+    ];
+    expect(isLikelySilenceFromSegments(segments)).toBe(false);
+  });
+});
+
+describe('joinTranscriptForContext', () => {
+  it('returns empty string for empty input', () => {
+    expect(joinTranscriptForContext([])).toBe('');
+  });
+
+  it('drops chunks whose text matches a known hallucination pattern', () => {
+    const out = joinTranscriptForContext([
+      { text: 'We need to align on the launch date.' },
+      { text: 'Thanks for watching' },
+      { text: 'Then we ship next Tuesday.' },
+    ]);
+    expect(out).toBe('We need to align on the launch date. Then we ship next Tuesday.');
+  });
+
+  it('drops empty-text chunks (silence rows) without leaving double separators', () => {
+    const out = joinTranscriptForContext([
+      { text: 'First substantive line.' },
+      { text: '' },
+      { text: 'Second substantive line.' },
+    ]);
+    expect(out).toBe('First substantive line. Second substantive line.');
+  });
+
+  it('honours a custom separator', () => {
+    const out = joinTranscriptForContext(
+      [{ text: 'one' }, { text: 'two' }],
+      '\n',
+    );
+    expect(out).toBe('one\ntwo');
+  });
+
+  it('preserves chunks that look like hallucinations only at substring level', () => {
+    const out = joinTranscriptForContext([
+      { text: 'I said thank you to the team after the demo.' },
+    ]);
+    expect(out).toBe('I said thank you to the team after the demo.');
   });
 });

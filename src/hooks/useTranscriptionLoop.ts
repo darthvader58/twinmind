@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-import type { RollingRecorderChunk } from '@/lib/audio/recorder';
+import { isLocallySilentChunk, type RollingRecorderChunk } from '@/lib/audio/recorder';
 import { useSessionStore } from '@/lib/store/session';
 import { useSettingsStore } from '@/lib/store/settings';
 import {
@@ -161,6 +161,23 @@ export const useTranscriptionLoop = (recorder: UseRecorderApi): void => {
       const apiKey = useSettingsStore.getState().apiKey;
 
       const speakerRole = classifyRole(next);
+
+      if (isLocallySilentChunk(next)) {
+        const silent: TranscriptChunk = {
+          id: next.id,
+          text: '',
+          startedAtMs: next.startedAtMs,
+          durationMs: next.durationMs,
+          speakerRole,
+        };
+        unmarkPending(next.id);
+        inFlightRef.current = false;
+        if (!cancelled) {
+          appendChunk(silent);
+          if (queueRef.current.length > 0) void drain();
+        }
+        return;
+      }
 
       let appended: TranscriptChunk;
       try {
