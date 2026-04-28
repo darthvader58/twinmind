@@ -50,6 +50,26 @@ export function shouldRotate(args: {
   return args.nowMs - args.lastSpeechAtMs >= args.silenceMs;
 }
 
+/**
+ * Pre-Whisper short-circuit: returns true when local-mic telemetry shows so
+ * little acoustic activity that the chunk has nothing worth transcribing. We
+ * bias toward silence because a missed borderline word is recoverable but a
+ * confident Whisper hallucination is not.
+ *
+ * `totalFrames === 0` means the analyser never ran (e.g. Safari without an
+ * AudioContext); we fall through to Whisper rather than dropping audio blind.
+ */
+export function isLocallySilentChunk(c: {
+  speechFrames: number;
+  totalFrames: number;
+  peakRms: number;
+}): boolean {
+  if (c.totalFrames === 0) return false;
+  if (c.speechFrames === 0) return true;
+  const speechRatio = c.speechFrames / c.totalFrames;
+  return speechRatio < 0.05 && c.peakRms < 0.05;
+}
+
 const errorName = (v: unknown): string | undefined => {
   if (typeof v !== 'object' || v === null) return undefined;
   const name = (v as { name?: unknown }).name;
