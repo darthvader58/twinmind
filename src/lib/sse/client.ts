@@ -6,7 +6,8 @@ export interface SseEvent<T = unknown> {
 /**
  * Async iterator over a Server-Sent Events response body. Yields one event
  * per `data:` block; multi-line `data:` payloads are joined with newlines and
- * parsed as JSON. Malformed JSON is silently skipped to keep the stream alive.
+ * parsed as JSON. Malformed payloads throw so callers can surface a clear
+ * error instead of silently hanging on a half-broken stream.
  */
 export async function* readSSE<T = unknown>(
   res: Response,
@@ -34,8 +35,10 @@ export async function* readSSE<T = unknown>(
         try {
           const data = JSON.parse(dataStr) as T;
           yield { event, data };
-        } catch {
-          // skip malformed payload
+        } catch (error) {
+          throw new Error(`Malformed SSE payload for event "${event}".`, {
+            cause: error,
+          });
         }
       }
       idx = buffer.indexOf('\n\n');

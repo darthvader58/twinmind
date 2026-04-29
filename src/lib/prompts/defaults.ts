@@ -90,10 +90,8 @@ export const DEFAULT_SETTINGS = {
   suggestContextChars: 4000,
   expandContextChars: 12000,
   chatContextChars: 8000,
-  extractContextChars: 1500,
   chunkSeconds: 30,
   refreshSeconds: 30,
-  extractRefreshSeconds: 30,
 } as const;
 
 export type DefaultSettings = typeof DEFAULT_SETTINGS;

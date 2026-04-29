@@ -18,7 +18,7 @@ pnpm dev
 # click the mic and start talking
 ```
 
-No environment variables are needed. Your key is stored only in your browser's `localStorage` under `twinmind.settings.v1`. To wipe it, open Settings and click "Reset to defaults" (or clear site data).
+No environment variables are needed. Your key is stored only in your browser's `localStorage` under `twinmind.settings.v2`. To wipe it, open Settings and click "Reset to defaults" (or clear site data).
 
 ## How it works
 
@@ -149,7 +149,7 @@ Never claim certainty about facts that depend on data you do not have. Prefer ra
 - **Next.js 14 App Router.** One repo, server routes for the Groq calls, edge runtime where it matters, easy Vercel deploy. No separate API server to operate.
 - **Edge runtime for `/api/suggest` and `/api/chat`, Node for `/api/transcribe`.** Edge gives us the lowest TTFB for streaming. Transcription needs `multipart/form-data` and a Blob handed straight to the Groq SDK, so it stays on Node.
 - **MediaRecorder rolling stop→start.** We chunk by stopping the current recorder and immediately creating a new one from the same `MediaStream`. This produces self-contained, decodable blobs (vs. timeslice, which yields fragments that can confuse Whisper). Sub-50 ms gaps in practice.
-- **Zustand, no server-state library.** All state is local and ephemeral; TanStack Query buys nothing. Two stores: `useSessionStore` (volatile — never persisted), `useSettingsStore` (`localStorage`-persisted, key `twinmind.settings.v1`).
+- **Zustand, no server-state library.** All state is local and ephemeral; TanStack Query buys nothing. Two stores: `useSessionStore` (volatile — never persisted), `useSettingsStore` (`localStorage`-persisted, key `twinmind.settings.v2`).
 - **JSON mode for `/api/suggest`, with a Zod schema enforcing exactly 3 items.** One retry on parse failure with a stricter system note. Without JSON mode the model occasionally wraps output in fences or apologises; with it the failure mode is "bad JSON" which is easy to detect and retry.
 - **No database, no auth, no analytics.** The whole point is "paste your key, talk, get value". Persistence is intentionally limited to settings.
 - **API key flows only via `x-groq-key` header.** Never logged, never echoed in errors, never written to a server-side store. The settings modal warns the user the key lives in their browser only.

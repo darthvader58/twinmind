@@ -14,7 +14,6 @@ export type NumberSettingKind =
   | 'suggestContextChars'
   | 'expandContextChars'
   | 'chatContextChars'
-  | 'extractContextChars'
   | 'chunkSeconds'
   | 'refreshSeconds';
 
@@ -27,7 +26,6 @@ export interface SettingsState {
   suggestContextChars: number;
   expandContextChars: number;
   chatContextChars: number;
-  extractContextChars: number;
   chunkSeconds: number;
   refreshSeconds: number;
 
@@ -46,7 +44,6 @@ const baseDefaults = {
   suggestContextChars: DEFAULT_SETTINGS.suggestContextChars,
   expandContextChars: DEFAULT_SETTINGS.expandContextChars,
   chatContextChars: DEFAULT_SETTINGS.chatContextChars,
-  extractContextChars: DEFAULT_SETTINGS.extractContextChars,
   chunkSeconds: DEFAULT_SETTINGS.chunkSeconds,
   refreshSeconds: DEFAULT_SETTINGS.refreshSeconds,
 };
@@ -87,7 +84,6 @@ export const useSettingsStore = create<SettingsState>()(
         suggestContextChars: state.suggestContextChars,
         expandContextChars: state.expandContextChars,
         chatContextChars: state.chatContextChars,
-        extractContextChars: state.extractContextChars,
         chunkSeconds: state.chunkSeconds,
         refreshSeconds: state.refreshSeconds,
       }),

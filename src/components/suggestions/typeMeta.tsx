@@ -1,5 +1,3 @@
-import { clsx } from 'clsx';
-
 import type { SuggestionType } from '@/lib/types';
 
 export interface TypeMeta {
@@ -46,21 +44,4 @@ export const TYPE_META: Record<SuggestionType, TypeMeta> = {
     label: 'Answer',
     description: 'A direct answer to a fresh, unanswered question in the recent transcript.',
   },
-};
-
-export const TypePill = ({ type, className }: { type: SuggestionType; className?: string }) => {
-  const tone = TYPE_META[type];
-  return (
-    <span
-      className={clsx(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]',
-        tone.bg,
-        tone.text,
-        tone.border,
-        className,
-      )}
-    >
-      {tone.label}
-    </span>
-  );
 };

@@ -1,66 +1,55 @@
 import { z } from 'zod';
 
 import { isNoApiKeyError, makeGroq } from '@/lib/groq/client';
-import { toSafeError } from '@/lib/groq/errors';
 import { generateSuggestions } from '@/lib/groq/suggest';
+import { contentLengthError, jsonError, missingApiKeyError } from '@/lib/http';
 import { newId } from '@/lib/ids';
 import { buildSuggestMessages } from '@/lib/prompts/assemble';
 import { TopicGraphNodeWireSchema } from '@/lib/prompts/schemas';
-import { makeError, type Suggestion, type TwinMindError } from '@/lib/types';
+import { makeError, type Suggestion } from '@/lib/types';
 
 export const runtime = 'edge';
 
+const MAX_SUGGEST_REQUEST_BYTES = 256 * 1024;
+const MAX_PREVIEW_CHARS = 280;
+const MAX_PROMPT_CHARS = 24_000;
+const MAX_TRANSCRIPT_CHARS = 48_000;
+const MAX_CONTEXT_CHARS = 48_000;
+
 const SuggestRequestSchema = z.object({
-  transcriptWindow: z.string(),
-  previousPreviews: z.array(z.string()).max(20),
-  suggestPrompt: z.string().min(1),
-  contextChars: z.number().int().nonnegative(),
+  transcriptWindow: z.string().max(MAX_TRANSCRIPT_CHARS),
+  previousPreviews: z.array(z.string().max(MAX_PREVIEW_CHARS)).max(20),
+  suggestPrompt: z.string().min(1).max(MAX_PROMPT_CHARS),
+  contextChars: z.number().int().nonnegative().max(MAX_CONTEXT_CHARS),
   topicGraph: z.array(TopicGraphNodeWireSchema).max(60).default([]),
-  annotatedTranscript: z.string().optional(),
+  annotatedTranscript: z.string().max(MAX_TRANSCRIPT_CHARS).optional(),
 });
 
-const STATUS_BY_KIND: Record<TwinMindError['kind'], number> = {
-  no_api_key: 400,
-  groq_unauthorized: 401,
-  groq_rate_limit: 429,
-  groq_server: 502,
-  invalid_json: 400,
-  mic_denied: 400,
-  mic_unavailable: 400,
-  network: 502,
-  unknown: 500,
-};
-
-function errorResponse(error: TwinMindError): Response {
-  return Response.json(
-    { error: toSafeError(error) },
-    { status: STATUS_BY_KIND[error.kind] },
-  );
-}
-
 export async function POST(req: Request): Promise<Response> {
+  const sizeError = contentLengthError(
+    req,
+    MAX_SUGGEST_REQUEST_BYTES,
+    'Suggest request body',
+  );
+  if (sizeError) return jsonError(sizeError);
+
   const apiKey = req.headers.get('x-groq-key') ?? '';
   if (!apiKey.trim()) {
-    return errorResponse(
-      makeError(
-        'no_api_key',
-        'Missing x-groq-key header. Open Settings and paste your key.',
-      ),
-    );
+    return jsonError(missingApiKeyError());
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return errorResponse(
+    return jsonError(
       makeError('invalid_json', 'Request body was not valid JSON.'),
     );
   }
 
   const parsed = SuggestRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return errorResponse(
+    return jsonError(
       makeError(
         'invalid_json',
         `Request body failed validation: ${parsed.error.message}`,
@@ -72,8 +61,8 @@ export async function POST(req: Request): Promise<Response> {
   try {
     client = makeGroq(apiKey);
   } catch (err) {
-    if (isNoApiKeyError(err)) return errorResponse(err.twinMindError);
-    return errorResponse(makeError('unknown', 'Failed to initialize Groq client.'));
+    if (isNoApiKeyError(err)) return jsonError(err.twinMindError);
+    return jsonError(makeError('unknown', 'Failed to initialize Groq client.'));
   }
 
   const RECENCY_MS = 90_000;
@@ -103,11 +92,11 @@ export async function POST(req: Request): Promise<Response> {
   const result = await generateSuggestions(client, messages);
   const latencyMs = Date.now() - t0;
 
-  if (!result.ok) return errorResponse(result.error);
+  if (!result.ok) return jsonError(result.error);
 
   const items = result.data.suggestions;
   if (items.length !== 3) {
-    return errorResponse(
+    return jsonError(
       makeError(
         'invalid_json',
         `Expected 3 suggestions, got ${items.length}.`,
@@ -116,7 +105,7 @@ export async function POST(req: Request): Promise<Response> {
   }
   const [a, b, c] = items;
   if (!a || !b || !c) {
-    return errorResponse(
+    return jsonError(
       makeError('invalid_json', 'Suggestion list contained empty entries.'),
     );
   }
