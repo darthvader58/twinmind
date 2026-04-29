@@ -1,22 +1,10 @@
-# TwinMind — Live Suggestions
+# TwinMind — Live Suggestions Feature
 
 ## What it is
 
-TwinMind is a single-page web app that listens to your microphone, streams a rolling transcript, and surfaces three fresh, context-aware suggestions every ~30 seconds while you talk. Tap any suggestion to open a detailed, streamed answer in a continuous chat thread that shares the same session context. Everything runs on **Groq** (Whisper Large V3 for speech, GPT-OSS 120B for suggestions and chat); no server-side keys, no database, no auth — paste your own key in Settings and go.
+TwinMind-Live is a single-page web app that listens to your microphone, streams a rolling transcript, and surfaces three fresh, context-aware suggestions every ~30 seconds while you talk. Tap any suggestion to open a detailed, streamed answer in a continuous chat thread that shares the same session context. Everything runs on **Groq** (Whisper Large V3 for speech, GPT-OSS 120B for suggestions and chat); no server-side keys, no database, no auth — paste your own key in Settings and go.
 
-Live demo: <to be filled in after `vercel --prod`>
-
-## Quickstart
-
-```bash
-git clone <this-repo> twinmind
-cd twinmind
-pnpm install
-pnpm dev
-# open http://localhost:3000
-# click the gear, paste your Groq API key
-# click the mic and start talking
-```
+Live demo: https://twinmind-phi.vercel.app
 
 No environment variables are needed. Your key is stored only in your browser's `localStorage` under `twinmind.settings.v2`. To wipe it, open Settings and click "Reset to defaults" (or clear site data).
 
@@ -67,7 +55,7 @@ The transcript window passed to `/suggest` is the last `suggestContextChars` (de
 
 ## Prompts
 
-These are the defaults you ship. Every prompt is editable from the in-app Settings modal; "Reset to defaults" restores these strings verbatim.
+Every prompt is editable from the in-app Settings modal.
 
 ### Suggestions prompt (default)
 
@@ -157,14 +145,11 @@ Never claim certainty about facts that depend on data you do not have. Prefer ra
 
 ## What I would do next with more time
 
-1. **VAD-based dynamic chunking** — chunk on natural speech pauses instead of a flat 30 s timer; gets transcript latency down without losing decode reliability.
-2. **Whisper streaming** — Groq's verbose-JSON returns full chunks; if/when a true streaming endpoint ships, swap in for partial-line updates as someone is mid-sentence.
-3. **Abort-mid-stream chat cancel UI** — currently chat streams to completion; a cancel button that aborts the SSE connection would be nice for off-topic answers.
-4. **Retry queue for failed transcribe chunks** — today a failed chunk shows an inline error; a background retry with exponential backoff would survive transient Groq blips invisibly.
-5. **Lightweight telemetry sampling** — opt-in client-side timings for first-token, suggestion latency, and parse-failure rate, surfaced in a `/diagnostics` panel.
-6. **Playwright e2e** — drive the full pipeline with a fake `MediaRecorder` and a recorded Groq response set to lock in regressions across the audio→suggest→chat path.
-7. **Multi-user rooms** — co-listening with shared transcript and per-user suggestions, behind a real auth layer.
-8. **Persistent sessions behind auth** — for users who want to revisit yesterday's call, not just the current page session.
+1. **Retry queue for failed transcribe chunks** — today a failed chunk shows an inline error; a background retry with exponential backoff would survive transient Groq blips invisibly.
+2. **Lightweight telemetry sampling** — opt-in client-side timings for first-token, suggestion latency, and parse-failure rate, surfaced in a `/diagnostics` panel.
+3. **Playwright e2e** — drive the full pipeline with a fake `MediaRecorder` and a recorded Groq response set to lock in regressions across the audio→suggest→chat path.
+4. **Multi-user rooms** — co-listening with shared transcript and per-user suggestions, behind a real auth layer.
+5. **Persistent sessions behind auth** — for users who want to revisit yesterday's call, not just the current page session.
 
 ## Trade-offs
 
@@ -188,3 +173,5 @@ Never claim certainty about facts that depend on data you do not have. Prefer ra
 ## License
 
 Apache-2.0 — see [LICENSE](./LICENSE).
+
+Made with <3 by <a href="https://github.com/darthvader58" target="_blank">Shashwat Raj</a>. 
